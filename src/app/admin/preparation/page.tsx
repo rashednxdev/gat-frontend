@@ -181,200 +181,274 @@ function BooksTab() {
   );
 }
 
-// ── BookTreePanel — Chapter / Topic / SubTopic manager ───────────────────────
+// ── Simple Modal Component ──────────────────────────────────────────────────
+function Modal({ isOpen, onClose, title, children }: any) {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-background border border-white/10 rounded-2xl w-full max-w-lg p-6 space-y-4 shadow-2xl animate-in zoom-in-95 duration-200">
+        <div className="flex justify-between items-center border-b border-white/10 pb-3">
+          <h3 className="font-bold text-lg">{title}</h3>
+          <button onClick={(e) => { e.preventDefault(); onClose(); }} type="button" className="p-1 hover:bg-white/10 rounded-full transition-colors"><X className="w-5 h-5 text-muted-foreground hover:text-white" /></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ── BookReadingView — Smart Reading Page with Modals ─────────────────────────
 function BookTreePanel({ book, onReload }: { book: any; onReload: () => void }) {
   const bookId = book._id;
   const chapters: any[] = book.chapters || [];
-  const [expandedChId, setExpandedChId] = useState<string | null>(null);
-  const [expandedTpId, setExpandedTpId] = useState<string | null>(null);
 
-  // ── Add Chapter form ──────────────────────────────────────────────
+  // Modal States
+  const [modalType, setModalType] = useState<'addCh' | 'editCh' | 'addTp' | 'editTp' | 'addSt' | 'editSt' | null>(null);
+  const [activeItem, setActiveItem] = useState<any>(null); // To store which chapter/topic is being edited or added to
+  const [saving, setSaving] = useState(false);
+
+  // Form States
   const [chForm, setChForm] = useState({ title: '', chapterNumber: '', description: '' });
-  const [chSaving, setChSaving] = useState(false);
-  const addChapter = async (e: any) => {
-    e.preventDefault(); setChSaving(true);
-    try {
-      await api.post(`/preparation/books-tools/${bookId}/chapters`, {
-        title: chForm.title,
-        chapterNumber: chForm.chapterNumber ? Number(chForm.chapterNumber) : undefined,
-        description: chForm.description,
-      });
-      setChForm({ title: '', chapterNumber: '', description: '' });
-      onReload();
-    } catch {} finally { setChSaving(false); }
-  };
-
-  return (
-    <div className="space-y-4">
-      {/* ── Add Chapter form ── */}
-      <form onSubmit={addChapter} className="rounded-xl border border-white/10 bg-background/60 p-4 space-y-3">
-        <p className="text-xs font-semibold text-primary flex items-center gap-1.5"><FolderOpen className="w-3.5 h-3.5" /> Add Chapter</p>
-        <div className="grid grid-cols-3 gap-2">
-          <Input placeholder="Title *" value={chForm.title} onChange={e => setChForm(f => ({ ...f, title: e.target.value }))} required className="col-span-2 bg-background/50 border-white/10 text-sm h-8" />
-          <Input type="number" placeholder="Ch. #" value={chForm.chapterNumber} onChange={e => setChForm(f => ({ ...f, chapterNumber: e.target.value }))} className="bg-background/50 border-white/10 text-sm h-8" />
-        </div>
-        <Input placeholder="Description (optional)" value={chForm.description} onChange={e => setChForm(f => ({ ...f, description: e.target.value }))} className="bg-background/50 border-white/10 text-sm h-8" />
-        <Button type="submit" size="sm" disabled={chSaving} className="bg-primary/80 text-white h-7 text-xs">
-          {chSaving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />} Add Chapter
-        </Button>
-      </form>
-
-      {/* ── Chapter list ── */}
-      {chapters.length === 0 && <p className="text-xs text-muted-foreground">No chapters yet.</p>}
-      <div className="space-y-2">
-        {chapters.map((ch: any) => {
-          const chId = ch.chapterId;
-          const isChOpen = expandedChId === chId;
-          return (
-            <div key={chId} className="rounded-xl border border-white/10 overflow-hidden">
-              {/* Chapter row */}
-              <div
-                className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 cursor-pointer select-none"
-                onClick={() => { setExpandedChId(isChOpen ? null : chId); setExpandedTpId(null); }}>
-                {isChOpen ? <ChevronDown className="w-3.5 h-3.5 text-primary" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
-                <Folder className="w-3.5 h-3.5 text-yellow-400/80" />
-                <span className="text-sm font-medium flex-1">
-                  {ch.chapterNumber ? `Ch. ${ch.chapterNumber} — ` : ''}{ch.title}
-                </span>
-                <span className="text-xs text-muted-foreground">{(ch.topics || []).length} topics</span>
-              </div>
-
-              {/* Topics panel */}
-              {isChOpen && (
-                <ChapterPanel
-                  bookId={bookId}
-                  ch={ch}
-                  expandedTpId={expandedTpId}
-                  setExpandedTpId={setExpandedTpId}
-                  onReload={onReload}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── ChapterPanel — Topic list + Add Topic form ───────────────────────────────
-function ChapterPanel({ bookId, ch, expandedTpId, setExpandedTpId, onReload }: any) {
-  const chId = ch.chapterId;
-  const topics: any[] = ch.topics || [];
   const [tpForm, setTpForm] = useState({ title: '', content: '', source: '', notes: '' });
-  const [tpSaving, setTpSaving] = useState(false);
-
-  const addTopic = async (e: any) => {
-    e.preventDefault(); setTpSaving(true);
-    try {
-      await api.post(`/preparation/books-tools/${bookId}/chapters/${chId}/topics`, {
-        title: tpForm.title,
-        details: { content: tpForm.content, source: tpForm.source, notes: tpForm.notes },
-      });
-      setTpForm({ title: '', content: '', source: '', notes: '' });
-      onReload();
-    } catch {} finally { setTpSaving(false); }
-  };
-
-  return (
-    <div className="px-4 py-3 bg-background/30 space-y-3">
-      {/* Add Topic form */}
-      <form onSubmit={addTopic} className="rounded-lg border border-white/10 bg-background/50 p-3 space-y-2">
-        <p className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5"><AlignLeft className="w-3 h-3" /> Add Topic</p>
-        <Input placeholder="Topic title *" value={tpForm.title} onChange={e => setTpForm(f => ({ ...f, title: e.target.value }))} required className="bg-background/50 border-white/10 text-xs h-7" />
-        <div className="grid grid-cols-2 gap-2">
-          <Input placeholder="Content / notes" value={tpForm.content} onChange={e => setTpForm(f => ({ ...f, content: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-          <Input placeholder="Source reference" value={tpForm.source} onChange={e => setTpForm(f => ({ ...f, source: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-        </div>
-        <Input placeholder="Notes" value={tpForm.notes} onChange={e => setTpForm(f => ({ ...f, notes: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-        <Button type="submit" size="sm" disabled={tpSaving} className="bg-emerald-600/70 text-white h-6 text-xs px-3">
-          {tpSaving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />} Add Topic
-        </Button>
-      </form>
-
-      {/* Topic list */}
-      {topics.length === 0 && <p className="text-xs text-muted-foreground pl-1">No topics yet.</p>}
-      <div className="space-y-1.5">
-        {topics.map((tp: any) => {
-          const tpId = tp.topicId;
-          const isTpOpen = expandedTpId === tpId;
-          return (
-            <div key={tpId} className="rounded-lg border border-white/10 overflow-hidden">
-              <div
-                className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer select-none"
-                onClick={() => setExpandedTpId(isTpOpen ? null : tpId)}>
-                {isTpOpen ? <ChevronDown className="w-3 h-3 text-emerald-400" /> : <ChevronRight className="w-3 h-3 text-muted-foreground" />}
-                <Hash className="w-3 h-3 text-emerald-400/70" />
-                <span className="text-xs font-medium flex-1">{tp.title}</span>
-                <span className="text-xs text-muted-foreground">{(tp.subTopics || []).length} sub</span>
-              </div>
-
-              {isTpOpen && (
-                <TopicPanel
-                  bookId={bookId}
-                  chId={chId}
-                  tp={tp}
-                  onReload={onReload}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ── TopicPanel — SubTopic list + Add SubTopic form ───────────────────────────
-function TopicPanel({ bookId, chId, tp, onReload }: any) {
-  const tpId = tp.topicId;
-  const subTopics: any[] = tp.subTopics || [];
   const [stForm, setStForm] = useState({ title: '', content: '', notes: '' });
-  const [stSaving, setStSaving] = useState(false);
 
-  const addSubTopic = async (e: any) => {
-    e.preventDefault(); setStSaving(true);
+  const closeModal = () => {
+    setModalType(null);
+    setActiveItem(null);
+  };
+
+  // ── Chapter Actions
+  const handleChapterSubmit = async (e: any) => {
+    e.preventDefault(); setSaving(true);
     try {
-      await api.post(`/preparation/books-tools/${bookId}/chapters/${chId}/topics/${tpId}/subtopics`, {
-        title: stForm.title,
-        details: { content: stForm.content, notes: stForm.notes },
-      });
-      setStForm({ title: '', content: '', notes: '' });
+      if (modalType === 'addCh') {
+        await api.post(`/preparation/books-tools/${bookId}/chapters`, {
+          title: chForm.title,
+          chapterNumber: chForm.chapterNumber ? Number(chForm.chapterNumber) : undefined,
+          description: chForm.description,
+        });
+      } else if (modalType === 'editCh') {
+        await api.put(`/preparation/books-tools/${bookId}/chapters/${activeItem.chapterId}`, {
+          title: chForm.title,
+          chapterNumber: chForm.chapterNumber ? Number(chForm.chapterNumber) : undefined,
+          description: chForm.description,
+        });
+      }
+      closeModal();
       onReload();
-    } catch {} finally { setStSaving(false); }
+    } catch {} finally { setSaving(false); }
+  };
+
+  const deleteChapter = async (chId: string) => {
+    if (!confirm('Delete this chapter?')) return;
+    try { await api.delete(`/preparation/books-tools/${bookId}/chapters/${chId}`); onReload(); } catch {}
+  };
+
+  // ── Topic Actions
+  const handleTopicSubmit = async (e: any) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      const chId = activeItem.chapterId;
+      if (modalType === 'addTp') {
+        await api.post(`/preparation/books-tools/${bookId}/chapters/${chId}/topics`, {
+          title: tpForm.title,
+          details: { content: tpForm.content, source: tpForm.source, notes: tpForm.notes },
+        });
+      } else if (modalType === 'editTp') {
+        await api.put(`/preparation/books-tools/${bookId}/chapters/${chId}/topics/${activeItem.topicId}`, {
+          title: tpForm.title,
+          details: { content: tpForm.content, source: tpForm.source, notes: tpForm.notes },
+        });
+      }
+      closeModal();
+      onReload();
+    } catch {} finally { setSaving(false); }
+  };
+
+  const deleteTopic = async (chId: string, tpId: string) => {
+    if (!confirm('Delete this topic?')) return;
+    try { await api.delete(`/preparation/books-tools/${bookId}/chapters/${chId}/topics/${tpId}`); onReload(); } catch {}
+  };
+
+  // ── SubTopic Actions
+  const handleSubTopicSubmit = async (e: any) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      const { chapterId, topicId } = activeItem;
+      if (modalType === 'addSt') {
+        await api.post(`/preparation/books-tools/${bookId}/chapters/${chapterId}/topics/${topicId}/subtopics`, {
+          title: stForm.title,
+          details: { content: stForm.content, notes: stForm.notes },
+        });
+      } else if (modalType === 'editSt') {
+        await api.put(`/preparation/books-tools/${bookId}/chapters/${chapterId}/topics/${topicId}/subtopics/${activeItem.subTopicId}`, {
+          title: stForm.title,
+          details: { content: stForm.content, notes: stForm.notes },
+        });
+      }
+      closeModal();
+      onReload();
+    } catch {} finally { setSaving(false); }
+  };
+
+  const deleteSubTopic = async (chId: string, tpId: string, stId: string) => {
+    if (!confirm('Delete this sub-topic?')) return;
+    try { await api.delete(`/preparation/books-tools/${bookId}/chapters/${chId}/topics/${tpId}/subtopics/${stId}`); onReload(); } catch {}
   };
 
   return (
-    <div className="px-3 py-2.5 bg-background/20 space-y-2.5">
-      {/* Add SubTopic form */}
-      <form onSubmit={addSubTopic} className="rounded-lg border border-white/10 bg-background/40 p-2.5 space-y-1.5">
-        <p className="text-xs font-semibold text-sky-400 flex items-center gap-1"><Plus className="w-3 h-3" /> Add Sub-Topic</p>
-        <Input placeholder="Sub-topic title *" value={stForm.title} onChange={e => setStForm(f => ({ ...f, title: e.target.value }))} required className="bg-background/50 border-white/10 text-xs h-7" />
-        <div className="grid grid-cols-2 gap-2">
-          <Input placeholder="Content" value={stForm.content} onChange={e => setStForm(f => ({ ...f, content: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-          <Input placeholder="Notes" value={stForm.notes} onChange={e => setStForm(f => ({ ...f, notes: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-        </div>
-        <Button type="submit" size="sm" disabled={stSaving} className="bg-sky-700/70 text-white h-6 text-xs px-3">
-          {stSaving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />} Add Sub-Topic
-        </Button>
-      </form>
+    <div className="relative font-serif max-w-4xl mx-auto">
+      {/* ── Reading Page Container ── */}
+      <div className="text-foreground leading-relaxed">
+        {chapters.length === 0 && (
+          <div className="text-center py-10 opacity-60">
+            <BookOpen className="w-12 h-12 mx-auto mb-3" />
+            <p>This book is empty. Add the first chapter to begin.</p>
+          </div>
+        )}
 
-      {/* SubTopic list */}
-      {subTopics.length === 0 && <p className="text-xs text-muted-foreground pl-1">No sub-topics yet.</p>}
-      <div className="space-y-1">
-        {subTopics.map((st: any) => (
-          <div key={String(st.subTopicId)} className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10">
-            <span className="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0" />
-            <span className="text-xs">{st.title}</span>
-            {st.details?.content && <span className="text-xs text-muted-foreground ml-auto truncate max-w-[200px]">{st.details.content}</span>}
+        {chapters.map((ch: any) => (
+          <div key={ch.chapterId} className="mb-14 relative group/chapter">
+            {/* Chapter Header */}
+            <div className="border-b-2 border-primary/30 pb-2 mb-4 pr-16 relative">
+              <h2 className="text-3xl font-extrabold m-0 text-white tracking-tight">
+                {ch.chapterNumber ? <span className="text-primary/70 mr-2">Chapter {ch.chapterNumber}:</span> : ''}
+                {ch.title}
+              </h2>
+              {ch.description && <p className="text-muted-foreground mt-2 text-lg italic m-0">{ch.description}</p>}
+              
+              {/* Chapter Actions */}
+              <div className="absolute right-0 top-0 opacity-0 group-hover/chapter:opacity-100 flex gap-1 transition-opacity">
+                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-white/10" onClick={() => { setModalType('editCh'); setActiveItem(ch); setChForm({ title: ch.title, chapterNumber: ch.chapterNumber || '', description: ch.description || '' }); }}>
+                  <Pencil className="w-4 h-4 text-muted-foreground" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/20" onClick={() => deleteChapter(ch.chapterId)}>
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Topics List */}
+            {ch.topics?.length === 0 && <p className="text-muted-foreground italic text-sm ml-6">No topics in this chapter.</p>}
+            
+            <div className="pl-4 md:pl-8 space-y-10">
+              {ch.topics?.map((tp: any) => (
+                <div key={tp.topicId} className="relative group/topic">
+                  {/* Topic Header */}
+                  <div className="relative pr-16">
+                    <h3 className="text-2xl font-bold m-0 text-emerald-400 mb-2 flex items-center gap-2">
+                      <Hash className="w-5 h-5 text-emerald-500/50" />
+                      {tp.title}
+                    </h3>
+                    {tp.details?.content && <p className="text-base text-foreground/90 m-0 mb-3">{tp.details.content}</p>}
+                    {(tp.details?.notes || tp.details?.source) && (
+                      <div className="bg-white/5 rounded-lg p-3 text-sm text-muted-foreground mb-4">
+                        {tp.details?.source && <p className="m-0 mb-1"><strong className="text-white/70">Source:</strong> {tp.details.source}</p>}
+                        {tp.details?.notes && <p className="m-0 italic">{tp.details.notes}</p>}
+                      </div>
+                    )}
+                    
+                    {/* Topic Actions */}
+                    <div className="absolute right-0 top-0 opacity-0 group-hover/topic:opacity-100 flex gap-1 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-white/10" onClick={() => { setModalType('editTp'); setActiveItem({ ...tp, chapterId: ch.chapterId }); setTpForm({ title: tp.title, content: tp.details?.content || '', source: tp.details?.source || '', notes: tp.details?.notes || '' }); }}>
+                        <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-red-500/20" onClick={() => deleteTopic(ch.chapterId, tp.topicId)}>
+                        <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Subtopics List */}
+                  <div className="pl-6 md:pl-8 mt-4 space-y-6 border-l-2 border-emerald-500/20">
+                    {tp.subTopics?.map((st: any) => (
+                      <div key={st.subTopicId} className="relative group/subtopic pl-4">
+                        <div className="absolute -left-[9px] top-2 w-4 h-4 rounded-full bg-background border-2 border-sky-400"></div>
+                        <h4 className="text-xl font-bold m-0 text-sky-300 mb-1">{st.title}</h4>
+                        {st.details?.content && <p className="text-base text-foreground/80 m-0 mb-2 whitespace-pre-line">{st.details.content}</p>}
+                        {st.details?.notes && <p className="text-sm italic text-muted-foreground m-0 bg-white/5 p-2 rounded whitespace-pre-line">{st.details.notes}</p>}
+                        
+                        {/* SubTopic Actions */}
+                        <div className="absolute right-0 top-0 opacity-0 group-hover/subtopic:opacity-100 flex gap-1 transition-opacity">
+                          <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-white/10" onClick={() => { setModalType('editSt'); setActiveItem({ ...st, chapterId: ch.chapterId, topicId: tp.topicId }); setStForm({ title: st.title, content: st.details?.content || '', notes: st.details?.notes || '' }); }}>
+                            <Pencil className="w-3 h-3 text-muted-foreground" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-red-500/20" onClick={() => deleteSubTopic(ch.chapterId, tp.topicId, st.subTopicId)}>
+                            <Trash2 className="w-3 h-3 text-red-400" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    
+                    {/* Add SubTopic Button */}
+                    <div className="pl-4">
+                      <Button variant="ghost" size="sm" className="text-sky-400 hover:text-sky-300 hover:bg-sky-400/10 px-2 py-1 h-auto text-sm" onClick={() => { setModalType('addSt'); setActiveItem({ chapterId: ch.chapterId, topicId: tp.topicId }); setStForm({ title: '', content: '', notes: '' }); }}>
+                        <Plus className="w-3 h-3 mr-1" /> Add Sub-Topic
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+
+              {/* Add Topic Button */}
+              <div className="pt-2">
+                <Button variant="outline" className="border-dashed border-emerald-500/30 text-emerald-400 hover:text-emerald-300 hover:border-emerald-400 hover:bg-emerald-500/10" onClick={() => { setModalType('addTp'); setActiveItem({ chapterId: ch.chapterId }); setTpForm({ title: '', content: '', source: '', notes: '' }); }}>
+                  <Plus className="w-4 h-4 mr-2" /> Add Topic
+                </Button>
+              </div>
+            </div>
           </div>
         ))}
+
+        {/* Global Add Chapter Button */}
+        <div className="mt-8 pt-4 border-t border-white/10">
+          <Button className="w-full bg-primary text-white hover:bg-primary/90" onClick={() => { setModalType('addCh'); setChForm({ title: '', chapterNumber: '', description: '' }); }}>
+            <Plus className="w-5 h-5 mr-2" /> Add New Chapter
+          </Button>
+        </div>
       </div>
+
+      {/* ── Modals ── */}
+      
+      {/* Chapter Modal */}
+      <Modal isOpen={modalType === 'addCh' || modalType === 'editCh'} onClose={closeModal} title={modalType === 'addCh' ? 'Add Chapter' : 'Edit Chapter'}>
+        <form onSubmit={handleChapterSubmit} className="space-y-4">
+          <Input placeholder="Title *" value={chForm.title} onChange={e => setChForm(f => ({ ...f, title: e.target.value }))} required className="bg-background border-white/10" />
+          <Input type="number" placeholder="Chapter Number (optional)" value={chForm.chapterNumber} onChange={e => setChForm(f => ({ ...f, chapterNumber: e.target.value }))} className="bg-background border-white/10" />
+          <textarea rows={3} placeholder="Description" value={chForm.description} onChange={e => setChForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+          <Button type="submit" disabled={saving} className="w-full bg-primary text-white">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save Chapter
+          </Button>
+        </form>
+      </Modal>
+
+      {/* Topic Modal */}
+      <Modal isOpen={modalType === 'addTp' || modalType === 'editTp'} onClose={closeModal} title={modalType === 'addTp' ? 'Add Topic' : 'Edit Topic'}>
+        <form onSubmit={handleTopicSubmit} className="space-y-4">
+          <Input placeholder="Topic Title *" value={tpForm.title} onChange={e => setTpForm(f => ({ ...f, title: e.target.value }))} required className="bg-background border-white/10" />
+          <textarea rows={4} placeholder="Topic Content" value={tpForm.content} onChange={e => setTpForm(f => ({ ...f, content: e.target.value }))} className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+          <Input placeholder="Source Reference" value={tpForm.source} onChange={e => setTpForm(f => ({ ...f, source: e.target.value }))} className="bg-background border-white/10" />
+          <Input placeholder="Extra Notes" value={tpForm.notes} onChange={e => setTpForm(f => ({ ...f, notes: e.target.value }))} className="bg-background border-white/10" />
+          <Button type="submit" disabled={saving} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save Topic
+          </Button>
+        </form>
+      </Modal>
+
+      {/* SubTopic Modal */}
+      <Modal isOpen={modalType === 'addSt' || modalType === 'editSt'} onClose={closeModal} title={modalType === 'addSt' ? 'Add Sub-Topic' : 'Edit Sub-Topic'}>
+        <form onSubmit={handleSubTopicSubmit} className="space-y-4">
+          <Input placeholder="Sub-Topic Title *" value={stForm.title} onChange={e => setStForm(f => ({ ...f, title: e.target.value }))} required className="bg-background border-white/10" />
+          <textarea rows={4} placeholder="Content" value={stForm.content} onChange={e => setStForm(f => ({ ...f, content: e.target.value }))} className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+          <Input placeholder="Extra Notes" value={stForm.notes} onChange={e => setStForm(f => ({ ...f, notes: e.target.value }))} className="bg-background border-white/10" />
+          <Button type="submit" disabled={saving} className="w-full bg-sky-600 hover:bg-sky-700 text-white">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save Sub-Topic
+          </Button>
+        </form>
+      </Modal>
     </div>
   );
 }
-
-
 function SyllabusTab() {
   const [list, setList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -447,7 +521,7 @@ function SyllabusTab() {
                       {detailLoading
                         ? <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
                         : detail
-                          ? <ExamTreePanel exam={detail} onReload={reloadDetail} />
+                          ? <ExamReadingView exam={detail} onReload={reloadDetail} />
                           : null}
                     </div>
                   )}
@@ -461,265 +535,282 @@ function SyllabusTab() {
   );
 }
 
-// ── ExamTreePanel — Parts ─────────────────────────────────────────────────────
-function ExamTreePanel({ exam, onReload }: { exam: any; onReload: () => void }) {
-  const [pForm, setPForm] = useState({ name: '', description: '' });
-  const [pSaving, setPSaving] = useState(false);
-  const [pError, setPError] = useState('');
-  const [openPartId, setOpenPartId] = useState<string | null>(null);
+// ── ExamReadingView — Smart Reading Page with Modals ─────────────────────────
+function ExamReadingView({ exam, onReload }: { exam: any; onReload: () => void }) {
+  const examId = exam._id;
+  const parts: any[] = exam.parts || [];
 
-  const addPart = async (e: any) => {
-    e.preventDefault(); setPSaving(true); setPError('');
-    try {
-      await api.post(`/preparation/syllabus/${exam._id}/parts`, pForm);
-      setPForm({ name: '', description: '' }); onReload();
-    } catch (err: any) {
-      console.error('addPart error:', err?.response?.data || err?.message);
-      setPError(err?.response?.data?.message || 'Failed to add part');
-    } finally { setPSaving(false); }
-  };
-
-  return (
-    <div className="space-y-4">
-      <form onSubmit={addPart} className="rounded-xl border border-white/10 bg-background/60 p-4 space-y-2">
-        <p className="text-xs font-semibold text-primary flex items-center gap-1.5"><FolderOpen className="w-3.5 h-3.5" /> Add Part</p>
-        <div className="grid grid-cols-2 gap-2">
-          <Input placeholder="Part name *" value={pForm.name} onChange={e => setPForm(f => ({ ...f, name: e.target.value }))} required className="bg-background/50 border-white/10 text-sm h-8" />
-          <Input placeholder="Description" value={pForm.description} onChange={e => setPForm(f => ({ ...f, description: e.target.value }))} className="bg-background/50 border-white/10 text-sm h-8" />
-        </div>
-        {pError && <p className="text-xs text-red-400 font-medium">{pError}</p>}
-        <Button type="submit" size="sm" disabled={pSaving} className="bg-primary/80 text-white h-7 text-xs">
-          {pSaving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />} Add Part
-        </Button>
-      </form>
-
-      {(exam.parts || []).length === 0 && <p className="text-xs text-muted-foreground">No parts yet.</p>}
-      <div className="space-y-2">
-        {(exam.parts || []).map((part: any) => (
-          <div key={String(part.partId)} className="rounded-xl border border-white/10 overflow-hidden">
-            <div
-              className="flex items-center gap-2 px-4 py-2.5 bg-white/5 hover:bg-white/10 cursor-pointer select-none"
-              onClick={() => setOpenPartId(openPartId === String(part.partId) ? null : String(part.partId))}
-            >
-              {openPartId === String(part.partId) ? <ChevronDown className="w-3.5 h-3.5 text-primary" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
-              <Folder className="w-3.5 h-3.5 text-yellow-400/80" />
-              <span className="text-sm font-medium flex-1">{part.name}</span>
-              <span className="text-xs text-muted-foreground">{(part.papers || []).length} papers</span>
-            </div>
-            {openPartId === String(part.partId) && (
-              <PartPanel examId={exam._id} part={part} onReload={onReload} />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-
-// ── PartPanel — Papers ────────────────────────────────────────────────────────
-function PartPanel({ examId, part, onReload }: any) {
-  const [form, setForm] = useState({ name: '', description: '', totalMarks: '', passMarks: '', durationMinutes: '', isOptional: false, typeOfExam: 'Written' });
-  const [saving, setSaving] = useState(false);
-  const [openPaperId, setOpenPaperId] = useState<string | null>(null);
-
-  const addPaper = async (e: any) => {
-    e.preventDefault(); setSaving(true);
-    try {
-      await api.post(`/preparation/syllabus/${examId}/parts/${String(part.partId)}/papers`, {
-        ...form,
-        totalMarks: form.totalMarks ? Number(form.totalMarks) : undefined,
-        passMarks: form.passMarks ? Number(form.passMarks) : undefined,
-        durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : undefined,
-      });
-      setForm({ name: '', description: '', totalMarks: '', passMarks: '', durationMinutes: '', isOptional: false, typeOfExam: 'Written' });
-      onReload();
-    } catch {} finally { setSaving(false); }
-  };
-
-  return (
-    <div className="px-4 py-3 bg-background/30 space-y-3">
-      <form onSubmit={addPaper} className="rounded-lg border border-white/10 bg-background/50 p-3 space-y-2">
-        <p className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5"><FileText className="w-3 h-3" /> Add Paper</p>
-        <div className="grid grid-cols-2 gap-2">
-          <Input placeholder="Paper name *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className="bg-background/50 border-white/10 text-xs h-7" />
-          <Input placeholder="Description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-          <Input type="number" placeholder="Total Marks" value={form.totalMarks} onChange={e => setForm(f => ({ ...f, totalMarks: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-          <Input type="number" placeholder="Pass Marks" value={form.passMarks} onChange={e => setForm(f => ({ ...f, passMarks: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-          <Input type="number" placeholder="Duration (min)" value={form.durationMinutes} onChange={e => setForm(f => ({ ...f, durationMinutes: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-          <select value={form.typeOfExam} onChange={e => setForm(f => ({ ...f, typeOfExam: e.target.value }))} className="bg-background/50 border border-white/10 rounded-lg px-2 py-1 text-xs h-7">
-            <option>Written</option><option>Open Book</option><option>Practical</option>
-          </select>
-        </div>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-          <input type="checkbox" checked={form.isOptional} onChange={e => setForm(f => ({ ...f, isOptional: e.target.checked }))} />
-          Optional paper
-        </label>
-        <Button type="submit" size="sm" disabled={saving} className="bg-emerald-600/70 text-white h-6 text-xs px-3">
-          {saving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />} Add Paper
-        </Button>
-      </form>
-
-      {(part.papers || []).length === 0 && <p className="text-xs text-muted-foreground pl-1">No papers yet.</p>}
-      <div className="space-y-1.5">
-        {(part.papers || []).map((paper: any) => (
-          <div key={String(paper.paperId)} className="rounded-lg border border-white/10 overflow-hidden">
-            <div
-              className="flex items-center gap-2 px-3 py-2 bg-white/5 hover:bg-white/10 cursor-pointer select-none"
-              onClick={() => setOpenPaperId(openPaperId === String(paper.paperId) ? null : String(paper.paperId))}
-            >
-              {openPaperId === String(paper.paperId) ? <ChevronDown className="w-3 h-3 text-emerald-400" /> : <ChevronRight className="w-3 h-3 text-muted-foreground" />}
-              <FileText className="w-3 h-3 text-emerald-400/70" />
-              <span className="text-xs font-medium flex-1">{paper.name}</span>
-              <span className="text-xs text-muted-foreground">{paper.typeOfExam}{paper.isOptional ? ' · Optional' : ''} · {(paper.groups || []).length} groups</span>
-            </div>
-            {openPaperId === String(paper.paperId) && (
-              <PaperPanel examId={examId} partId={String(part.partId)} paper={paper} onReload={onReload} />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── PaperPanel — Groups ───────────────────────────────────────────────────────
-function PaperPanel({ examId, partId, paper, onReload }: any) {
-  const [form, setForm] = useState({ name: '', description: '', marks: '' });
-  const [saving, setSaving] = useState(false);
-  const [openGroupId, setOpenGroupId] = useState<string | null>(null);
-
-  const addGroup = async (e: any) => {
-    e.preventDefault(); setSaving(true);
-    try {
-      await api.post(`/preparation/syllabus/${examId}/parts/${partId}/papers/${String(paper.paperId)}/groups`, {
-        name: form.name, description: form.description,
-        marks: form.marks ? Number(form.marks) : undefined,
-      });
-      setForm({ name: '', description: '', marks: '' }); onReload();
-    } catch {} finally { setSaving(false); }
-  };
-
-  return (
-    <div className="px-3 py-2.5 bg-background/20 space-y-2.5">
-      <form onSubmit={addGroup} className="rounded-lg border border-white/10 bg-background/40 p-2.5 space-y-1.5">
-        <p className="text-xs font-semibold text-sky-400 flex items-center gap-1"><Hash className="w-3 h-3" /> Add Group</p>
-        <div className="grid grid-cols-3 gap-1.5">
-          <Input placeholder="Group name *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className="col-span-2 bg-background/50 border-white/10 text-xs h-7" />
-          <Input type="number" placeholder="Marks" value={form.marks} onChange={e => setForm(f => ({ ...f, marks: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-        </div>
-        <Input placeholder="Description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-        <Button type="submit" size="sm" disabled={saving} className="bg-sky-700/70 text-white h-6 text-xs px-3">
-          {saving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />} Add Group
-        </Button>
-      </form>
-
-      {(paper.groups || []).length === 0 && <p className="text-xs text-muted-foreground pl-1">No groups yet.</p>}
-      <div className="space-y-1">
-        {(paper.groups || []).map((group: any) => (
-          <div key={String(group.groupId)} className="rounded-lg border border-white/10 overflow-hidden">
-            <div
-              className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 cursor-pointer select-none"
-              onClick={() => setOpenGroupId(openGroupId === String(group.groupId) ? null : String(group.groupId))}
-            >
-              {openGroupId === String(group.groupId) ? <ChevronDown className="w-3 h-3 text-sky-400" /> : <ChevronRight className="w-3 h-3 text-muted-foreground" />}
-              <Hash className="w-3 h-3 text-sky-400/70" />
-              <span className="text-xs font-medium flex-1">{group.name}</span>
-              <span className="text-xs text-muted-foreground">{group.marks ? `${group.marks}m · ` : ''}{(group.topics || []).length} topics</span>
-            </div>
-            {openGroupId === String(group.groupId) && (
-              <GroupPanel examId={examId} partId={partId} paperId={String(paper.paperId)} group={group} onReload={onReload} />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── GroupPanel — Topics ───────────────────────────────────────────────────────
-function GroupPanel({ examId, partId, paperId, group, onReload }: any) {
-  const [form, setForm] = useState({ name: '', description: '' });
-  const [saving, setSaving] = useState(false);
-  const [openTopicId, setOpenTopicId] = useState<string | null>(null);
-
-  const addTopic = async (e: any) => {
-    e.preventDefault(); setSaving(true);
-    try {
-      await api.post(`/preparation/syllabus/${examId}/parts/${partId}/papers/${paperId}/groups/${String(group.groupId)}/topics`, form);
-      setForm({ name: '', description: '' }); onReload();
-    } catch {} finally { setSaving(false); }
-  };
-
-  return (
-    <div className="px-3 py-2 bg-background/10 space-y-2">
-      <form onSubmit={addTopic} className="rounded-md border border-white/10 bg-background/30 p-2 space-y-1.5">
-        <p className="text-xs font-semibold text-violet-400 flex items-center gap-1"><AlignLeft className="w-3 h-3" /> Add Topic</p>
-        <div className="grid grid-cols-2 gap-1.5">
-          <Input placeholder="Topic name *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className="bg-background/50 border-white/10 text-xs h-7" />
-          <Input placeholder="Description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-7" />
-        </div>
-        <Button type="submit" size="sm" disabled={saving} className="bg-violet-700/70 text-white h-6 text-xs px-3">
-          {saving ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Plus className="w-3 h-3 mr-1" />} Add Topic
-        </Button>
-      </form>
-
-      {(group.topics || []).length === 0 && <p className="text-xs text-muted-foreground pl-1">No topics yet.</p>}
-      <div className="space-y-1">
-        {(group.topics || []).map((topic: any) => (
-          <div key={String(topic.topicId)} className="rounded-md border border-white/10 overflow-hidden">
-            <div
-              className="flex items-center gap-2 px-2.5 py-1.5 bg-white/5 hover:bg-white/10 cursor-pointer select-none"
-              onClick={() => setOpenTopicId(openTopicId === String(topic.topicId) ? null : String(topic.topicId))}
-            >
-              {openTopicId === String(topic.topicId) ? <ChevronDown className="w-2.5 h-2.5 text-violet-400" /> : <ChevronRight className="w-2.5 h-2.5 text-muted-foreground" />}
-              <span className="text-xs font-medium flex-1">{topic.name}</span>
-              <span className="text-xs text-muted-foreground">{(topic.subTopics || []).length} sub</span>
-            </div>
-            {openTopicId === String(topic.topicId) && (
-              <SubTopicPanel examId={examId} partId={partId} paperId={paperId} groupId={String(group.groupId)} topic={topic} onReload={onReload} />
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── SubTopicPanel — Sub-Topics ────────────────────────────────────────────────
-function SubTopicPanel({ examId, partId, paperId, groupId, topic, onReload }: any) {
-  const [form, setForm] = useState({ name: '', description: '' });
+  const [modalType, setModalType] = useState<
+    'addPart' | 'editPart' | 
+    'addPaper' | 'editPaper' | 
+    'addGroup' | 'editGroup' | 
+    'addTp' | 'editTp' | 
+    'addSt' | 'editSt' | null
+  >(null);
+  const [activeItem, setActiveItem] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
-  const addSubTopic = async (e: any) => {
+  // Forms
+  const [partForm, setPartForm] = useState({ name: '', description: '' });
+  const [paperForm, setPaperForm] = useState({ name: '', description: '', totalMarks: '', passMarks: '', durationMinutes: '', isOptional: false, typeOfExam: 'Written' });
+  const [groupForm, setGroupForm] = useState({ name: '', description: '', marks: '' });
+  const [tpForm, setTpForm] = useState({ name: '', description: '' });
+  const [stForm, setStForm] = useState({ name: '', description: '' });
+
+  const closeModal = () => { setModalType(null); setActiveItem(null); };
+
+  // Handlers for Part
+  const handlePartSubmit = async (e: any) => {
     e.preventDefault(); setSaving(true);
     try {
-      await api.post(`/preparation/syllabus/${examId}/parts/${partId}/papers/${paperId}/groups/${groupId}/topics/${String(topic.topicId)}/subtopics`, form);
-      setForm({ name: '', description: '' }); onReload();
+      if (modalType === 'addPart') {
+        await api.post(`/preparation/syllabus/${examId}/parts`, partForm);
+      } else if (modalType === 'editPart') {
+        await api.put(`/preparation/syllabus/${examId}/parts/${activeItem.partId}`, partForm);
+      }
+      closeModal(); onReload();
     } catch {} finally { setSaving(false); }
+  };
+  const deletePart = async (id: string) => {
+    if (!confirm('Delete this part?')) return;
+    try { await api.delete(`/preparation/syllabus/${examId}/parts/${id}`); onReload(); } catch {}
+  };
+
+  // Handlers for Paper
+  const handlePaperSubmit = async (e: any) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      const payload = {
+        ...paperForm,
+        totalMarks: paperForm.totalMarks ? Number(paperForm.totalMarks) : undefined,
+        passMarks: paperForm.passMarks ? Number(paperForm.passMarks) : undefined,
+        durationMinutes: paperForm.durationMinutes ? Number(paperForm.durationMinutes) : undefined,
+      };
+      if (modalType === 'addPaper') {
+        await api.post(`/preparation/syllabus/${examId}/parts/${activeItem.partId}/papers`, payload);
+      } else if (modalType === 'editPaper') {
+        await api.put(`/preparation/syllabus/${examId}/parts/${activeItem.partId}/papers/${activeItem.paperId}`, payload);
+      }
+      closeModal(); onReload();
+    } catch {} finally { setSaving(false); }
+  };
+  const deletePaper = async (partId: string, id: string) => {
+    if (!confirm('Delete this paper?')) return;
+    try { await api.delete(`/preparation/syllabus/${examId}/parts/${partId}/papers/${id}`); onReload(); } catch {}
+  };
+
+  // Handlers for Group
+  const handleGroupSubmit = async (e: any) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      const payload = { ...groupForm, marks: groupForm.marks ? Number(groupForm.marks) : undefined };
+      if (modalType === 'addGroup') {
+        await api.post(`/preparation/syllabus/${examId}/parts/${activeItem.partId}/papers/${activeItem.paperId}/groups`, payload);
+      } else if (modalType === 'editGroup') {
+        await api.put(`/preparation/syllabus/${examId}/parts/${activeItem.partId}/papers/${activeItem.paperId}/groups/${activeItem.groupId}`, payload);
+      }
+      closeModal(); onReload();
+    } catch {} finally { setSaving(false); }
+  };
+  const deleteGroup = async (partId: string, paperId: string, id: string) => {
+    if (!confirm('Delete this group?')) return;
+    try { await api.delete(`/preparation/syllabus/${examId}/parts/${partId}/papers/${paperId}/groups/${id}`); onReload(); } catch {}
+  };
+
+  // Handlers for Topic
+  const handleTopicSubmit = async (e: any) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      if (modalType === 'addTp') {
+        await api.post(`/preparation/syllabus/${examId}/parts/${activeItem.partId}/papers/${activeItem.paperId}/groups/${activeItem.groupId}/topics`, tpForm);
+      } else if (modalType === 'editTp') {
+        await api.put(`/preparation/syllabus/${examId}/parts/${activeItem.partId}/papers/${activeItem.paperId}/groups/${activeItem.groupId}/topics/${activeItem.topicId}`, tpForm);
+      }
+      closeModal(); onReload();
+    } catch {} finally { setSaving(false); }
+  };
+  const deleteTopic = async (partId: string, paperId: string, groupId: string, id: string) => {
+    if (!confirm('Delete this topic?')) return;
+    try { await api.delete(`/preparation/syllabus/${examId}/parts/${partId}/papers/${paperId}/groups/${groupId}/topics/${id}`); onReload(); } catch {}
+  };
+
+  // Handlers for SubTopic
+  const handleSubTopicSubmit = async (e: any) => {
+    e.preventDefault(); setSaving(true);
+    try {
+      if (modalType === 'addSt') {
+        await api.post(`/preparation/syllabus/${examId}/parts/${activeItem.partId}/papers/${activeItem.paperId}/groups/${activeItem.groupId}/topics/${activeItem.topicId}/subtopics`, stForm);
+      } else if (modalType === 'editSt') {
+        await api.put(`/preparation/syllabus/${examId}/parts/${activeItem.partId}/papers/${activeItem.paperId}/groups/${activeItem.groupId}/topics/${activeItem.topicId}/subtopics/${activeItem.subTopicId}`, stForm);
+      }
+      closeModal(); onReload();
+    } catch {} finally { setSaving(false); }
+  };
+  const deleteSubTopic = async (partId: string, paperId: string, groupId: string, topicId: string, id: string) => {
+    if (!confirm('Delete this sub-topic?')) return;
+    try { await api.delete(`/preparation/syllabus/${examId}/parts/${partId}/papers/${paperId}/groups/${groupId}/topics/${topicId}/subtopics/${id}`); onReload(); } catch {}
   };
 
   return (
-    <div className="px-2.5 py-2 bg-background/5 space-y-1.5">
-      <form onSubmit={addSubTopic} className="rounded border border-white/10 bg-background/20 p-2 space-y-1">
-        <p className="text-xs font-semibold text-rose-400 flex items-center gap-1"><Plus className="w-2.5 h-2.5" /> Add Sub-Topic</p>
-        <div className="grid grid-cols-2 gap-1.5">
-          <Input placeholder="Sub-topic name *" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className="bg-background/50 border-white/10 text-xs h-6" />
-          <Input placeholder="Description" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="bg-background/50 border-white/10 text-xs h-6" />
-        </div>
-        <Button type="submit" size="sm" disabled={saving} className="bg-rose-700/70 text-white h-5 text-xs px-2">
-          {saving ? <Loader2 className="w-2.5 h-2.5 animate-spin mr-1" /> : <Plus className="w-2.5 h-2.5 mr-1" />} Add
-        </Button>
-      </form>
-      <div className="space-y-0.5">
-        {(topic.subTopics || []).map((st: any) => (
-          <div key={String(st.subTopicId)} className="flex items-center gap-2 px-2 py-1 rounded bg-white/5 border border-white/5">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
-            <span className="text-xs">{st.name}</span>
-            {st.description && <span className="text-xs text-muted-foreground ml-auto truncate max-w-[150px]">{st.description}</span>}
+    <div className="relative font-serif max-w-5xl mx-auto">
+      <div className="prose prose-invert max-w-none text-foreground leading-relaxed">
+        {parts.length === 0 && (
+          <div className="text-center py-10 opacity-60">
+            <BookOpen className="w-12 h-12 mx-auto mb-3" />
+            <p>This syllabus is empty. Add the first part to begin.</p>
+          </div>
+        )}
+
+        {/* Level 1: Parts */}
+        {parts.map((part: any) => (
+          <div key={part.partId} className="mb-16 relative group/part">
+            <div className="border-b-2 border-primary/30 pb-2 mb-6 pr-16 relative">
+              <h2 className="text-3xl font-extrabold m-0 text-white tracking-tight flex items-center gap-2">
+                <FolderOpen className="w-7 h-7 text-primary/70" /> {part.name}
+              </h2>
+              {part.description && <p className="text-muted-foreground mt-2 text-lg italic m-0">{part.description}</p>}
+              <div className="absolute right-0 top-0 opacity-0 group-hover/part:opacity-100 flex gap-1 transition-opacity">
+                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-white/10" onClick={() => { setModalType('editPart'); setActiveItem(part); setPartForm({ name: part.name, description: part.description || '' }); }}><Pencil className="w-4 h-4 text-muted-foreground" /></Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-red-500/20" onClick={() => deletePart(part.partId)}><Trash2 className="w-4 h-4 text-red-400" /></Button>
+              </div>
+            </div>
+
+            {/* Level 2: Papers */}
+            <div className="pl-4 md:pl-8 space-y-12">
+              {part.papers?.map((paper: any) => (
+                <div key={paper.paperId} className="relative group/paper">
+                  <div className="relative pr-16 mb-4">
+                    <h3 className="text-2xl font-bold m-0 text-amber-400 flex items-center gap-2">
+                      <FileText className="w-6 h-6 text-amber-500/50" /> {paper.name}
+                    </h3>
+                    {paper.description && <p className="text-base text-foreground/90 m-0 mt-1">{paper.description}</p>}
+                    <div className="flex gap-2 text-xs text-muted-foreground mt-2">
+                      <span className="bg-white/5 px-2 py-1 rounded">Type: {paper.typeOfExam}</span>
+                      {paper.totalMarks && <span className="bg-white/5 px-2 py-1 rounded">Marks: {paper.totalMarks}</span>}
+                      {paper.passMarks && <span className="bg-white/5 px-2 py-1 rounded">Pass: {paper.passMarks}</span>}
+                      {paper.durationMinutes && <span className="bg-white/5 px-2 py-1 rounded">Time: {paper.durationMinutes}m</span>}
+                      {paper.isOptional && <span className="bg-amber-500/20 text-amber-300 px-2 py-1 rounded">Optional</span>}
+                    </div>
+                    <div className="absolute right-0 top-0 opacity-0 group-hover/paper:opacity-100 flex gap-1 transition-opacity">
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-white/10" onClick={() => { setModalType('editPaper'); setActiveItem({ ...paper, partId: part.partId }); setPaperForm({ name: paper.name, description: paper.description || '', totalMarks: paper.totalMarks || '', passMarks: paper.passMarks || '', durationMinutes: paper.durationMinutes || '', isOptional: paper.isOptional || false, typeOfExam: paper.typeOfExam || 'Written' }); }}><Pencil className="w-3.5 h-3.5 text-muted-foreground" /></Button>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-red-500/20" onClick={() => deletePaper(part.partId, paper.paperId)}><Trash2 className="w-3.5 h-3.5 text-red-400" /></Button>
+                    </div>
+                  </div>
+
+                  {/* Level 3: Groups */}
+                  <div className="pl-4 md:pl-8 space-y-8 border-l-2 border-amber-500/20">
+                    {paper.groups?.map((group: any) => (
+                      <div key={group.groupId} className="relative group/group pl-4">
+                        <div className="absolute -left-[9px] top-2 w-4 h-4 rounded-full bg-background border-2 border-emerald-400"></div>
+                        <h4 className="text-xl font-bold m-0 text-emerald-400 flex items-center justify-between">
+                          <span>{group.name} {group.marks && <span className="text-sm font-normal ml-2 bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded">{group.marks} marks</span>}</span>
+                        </h4>
+                        {group.description && <p className="text-base text-foreground/80 m-0 mt-1">{group.description}</p>}
+                        
+                        <div className="absolute right-0 top-0 opacity-0 group-hover/group:opacity-100 flex gap-1 transition-opacity">
+                          <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-white/10" onClick={() => { setModalType('editGroup'); setActiveItem({ ...group, partId: part.partId, paperId: paper.paperId }); setGroupForm({ name: group.name, description: group.description || '', marks: group.marks || '' }); }}><Pencil className="w-3 h-3 text-muted-foreground" /></Button>
+                          <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-red-500/20" onClick={() => deleteGroup(part.partId, paper.paperId, group.groupId)}><Trash2 className="w-3 h-3 text-red-400" /></Button>
+                        </div>
+
+                        {/* Level 4: Topics */}
+                        <div className="pl-6 mt-4 space-y-6">
+                          {group.topics?.map((topic: any) => (
+                            <div key={topic.topicId} className="relative group/topic">
+                              <h5 className="text-lg font-semibold m-0 text-sky-300 mb-1">{topic.name}</h5>
+                              {topic.description && <p className="text-sm text-muted-foreground m-0 mb-2">{topic.description}</p>}
+                              
+                              <div className="absolute right-0 top-0 opacity-0 group-hover/topic:opacity-100 flex gap-1 transition-opacity">
+                                <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-white/10" onClick={() => { setModalType('editTp'); setActiveItem({ ...topic, partId: part.partId, paperId: paper.paperId, groupId: group.groupId }); setTpForm({ name: topic.name, description: topic.description || '' }); }}><Pencil className="w-3 h-3 text-muted-foreground" /></Button>
+                                <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-red-500/20" onClick={() => deleteTopic(part.partId, paper.paperId, group.groupId, topic.topicId)}><Trash2 className="w-3 h-3 text-red-400" /></Button>
+                              </div>
+
+                              {/* Level 5: SubTopics */}
+                              <div className="pl-4 mt-2 space-y-2 border-l border-sky-500/30">
+                                {topic.subTopics?.map((st: any) => (
+                                  <div key={st.subTopicId} className="relative group/subtopic pl-3">
+                                    <h6 className="text-base font-medium m-0 text-foreground flex items-center gap-2">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                                      {st.name}
+                                    </h6>
+                                    {st.description && <p className="text-xs text-muted-foreground m-0 mt-0.5 ml-3.5">{st.description}</p>}
+                                    <div className="absolute right-0 top-0 opacity-0 group-hover/subtopic:opacity-100 flex gap-1 transition-opacity">
+                                      <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-white/10" onClick={() => { setModalType('editSt'); setActiveItem({ ...st, partId: part.partId, paperId: paper.paperId, groupId: group.groupId, topicId: topic.topicId }); setStForm({ name: st.name, description: st.description || '' }); }}><Pencil className="w-2.5 h-2.5 text-muted-foreground" /></Button>
+                                      <Button variant="ghost" size="icon" className="h-5 w-5 hover:bg-red-500/20" onClick={() => deleteSubTopic(part.partId, paper.paperId, group.groupId, topic.topicId, st.subTopicId)}><Trash2 className="w-2.5 h-2.5 text-red-400" /></Button>
+                                    </div>
+                                  </div>
+                                ))}
+                                <Button variant="ghost" size="sm" className="text-rose-400 hover:text-rose-300 hover:bg-rose-400/10 px-2 py-1 h-auto text-xs ml-3" onClick={() => { setModalType('addSt'); setActiveItem({ partId: part.partId, paperId: paper.paperId, groupId: group.groupId, topicId: topic.topicId }); setStForm({ name: '', description: '' }); }}><Plus className="w-3 h-3 mr-1" /> Add Sub-Topic</Button>
+                              </div>
+                            </div>
+                          ))}
+                          <Button variant="ghost" size="sm" className="text-sky-400 hover:text-sky-300 hover:bg-sky-400/10 px-2 py-1 h-auto text-xs" onClick={() => { setModalType('addTp'); setActiveItem({ partId: part.partId, paperId: paper.paperId, groupId: group.groupId }); setTpForm({ name: '', description: '' }); }}><Plus className="w-3 h-3 mr-1" /> Add Topic</Button>
+                        </div>
+                      </div>
+                    ))}
+                    <Button variant="ghost" size="sm" className="text-emerald-400 hover:text-emerald-300 hover:bg-emerald-400/10 px-2 py-1 h-auto text-xs" onClick={() => { setModalType('addGroup'); setActiveItem({ partId: part.partId, paperId: paper.paperId }); setGroupForm({ name: '', description: '', marks: '' }); }}><Plus className="w-3 h-3 mr-1" /> Add Group</Button>
+                  </div>
+                </div>
+              ))}
+              <Button variant="outline" className="border-dashed border-amber-500/30 text-amber-400 hover:text-amber-300 hover:border-amber-400 hover:bg-amber-500/10 text-sm" onClick={() => { setModalType('addPaper'); setActiveItem({ partId: part.partId }); setPaperForm({ name: '', description: '', totalMarks: '', passMarks: '', durationMinutes: '', isOptional: false, typeOfExam: 'Written' }); }}><Plus className="w-4 h-4 mr-2" /> Add Paper</Button>
+            </div>
           </div>
         ))}
+        
+        <div className="mt-8 pt-4 border-t border-white/10">
+          <Button className="w-full bg-primary text-white hover:bg-primary/90" onClick={() => { setModalType('addPart'); setPartForm({ name: '', description: '' }); }}><Plus className="w-5 h-5 mr-2" /> Add New Part</Button>
+        </div>
       </div>
+
+      {/* ── Modals ── */}
+      <Modal isOpen={modalType === 'addPart' || modalType === 'editPart'} onClose={closeModal} title={modalType === 'addPart' ? 'Add Part' : 'Edit Part'}>
+        <form onSubmit={handlePartSubmit} className="space-y-4">
+          <Input placeholder="Part Name *" value={partForm.name} onChange={e => setPartForm(f => ({ ...f, name: e.target.value }))} required className="bg-background border-white/10" />
+          <textarea rows={3} placeholder="Description" value={partForm.description} onChange={e => setPartForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+          <Button type="submit" disabled={saving} className="w-full bg-primary text-white">{saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save Part</Button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={modalType === 'addPaper' || modalType === 'editPaper'} onClose={closeModal} title={modalType === 'addPaper' ? 'Add Paper' : 'Edit Paper'}>
+        <form onSubmit={handlePaperSubmit} className="space-y-4">
+          <Input placeholder="Paper Name *" value={paperForm.name} onChange={e => setPaperForm(f => ({ ...f, name: e.target.value }))} required className="bg-background border-white/10" />
+          <textarea rows={2} placeholder="Description" value={paperForm.description} onChange={e => setPaperForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+          <div className="grid grid-cols-2 gap-3">
+            <Input type="number" placeholder="Total Marks" value={paperForm.totalMarks} onChange={e => setPaperForm(f => ({ ...f, totalMarks: e.target.value }))} className="bg-background border-white/10" />
+            <Input type="number" placeholder="Pass Marks" value={paperForm.passMarks} onChange={e => setPaperForm(f => ({ ...f, passMarks: e.target.value }))} className="bg-background border-white/10" />
+            <Input type="number" placeholder="Duration (min)" value={paperForm.durationMinutes} onChange={e => setPaperForm(f => ({ ...f, durationMinutes: e.target.value }))} className="bg-background border-white/10" />
+            <select value={paperForm.typeOfExam} onChange={e => setPaperForm(f => ({ ...f, typeOfExam: e.target.value }))} className="bg-background border border-white/10 rounded-xl px-3 py-2 text-sm">
+              <option>Written</option><option>Open Book</option><option>Practical</option>
+            </select>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-white cursor-pointer"><input type="checkbox" checked={paperForm.isOptional} onChange={e => setPaperForm(f => ({ ...f, isOptional: e.target.checked }))} className="w-4 h-4 accent-primary" /> Optional paper</label>
+          <Button type="submit" disabled={saving} className="w-full bg-amber-600 hover:bg-amber-700 text-white">{saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save Paper</Button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={modalType === 'addGroup' || modalType === 'editGroup'} onClose={closeModal} title={modalType === 'addGroup' ? 'Add Group' : 'Edit Group'}>
+        <form onSubmit={handleGroupSubmit} className="space-y-4">
+          <Input placeholder="Group Name *" value={groupForm.name} onChange={e => setGroupForm(f => ({ ...f, name: e.target.value }))} required className="bg-background border-white/10" />
+          <Input type="number" placeholder="Marks" value={groupForm.marks} onChange={e => setGroupForm(f => ({ ...f, marks: e.target.value }))} className="bg-background border-white/10" />
+          <textarea rows={2} placeholder="Description" value={groupForm.description} onChange={e => setGroupForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+          <Button type="submit" disabled={saving} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white">{saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save Group</Button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={modalType === 'addTp' || modalType === 'editTp'} onClose={closeModal} title={modalType === 'addTp' ? 'Add Topic' : 'Edit Topic'}>
+        <form onSubmit={handleTopicSubmit} className="space-y-4">
+          <Input placeholder="Topic Name *" value={tpForm.name} onChange={e => setTpForm(f => ({ ...f, name: e.target.value }))} required className="bg-background border-white/10" />
+          <textarea rows={3} placeholder="Description" value={tpForm.description} onChange={e => setTpForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+          <Button type="submit" disabled={saving} className="w-full bg-sky-600 hover:bg-sky-700 text-white">{saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save Topic</Button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={modalType === 'addSt' || modalType === 'editSt'} onClose={closeModal} title={modalType === 'addSt' ? 'Add Sub-Topic' : 'Edit Sub-Topic'}>
+        <form onSubmit={handleSubTopicSubmit} className="space-y-4">
+          <Input placeholder="Sub-Topic Name *" value={stForm.name} onChange={e => setStForm(f => ({ ...f, name: e.target.value }))} required className="bg-background border-white/10" />
+          <textarea rows={3} placeholder="Description" value={stForm.description} onChange={e => setStForm(f => ({ ...f, description: e.target.value }))} className="w-full bg-background border border-white/10 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-primary" />
+          <Button type="submit" disabled={saving} className="w-full bg-rose-600 hover:bg-rose-700 text-white">{saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save Sub-Topic</Button>
+        </form>
+      </Modal>
     </div>
   );
 }
