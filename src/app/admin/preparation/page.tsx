@@ -1,5 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import dynamic from 'next/dynamic';
+import 'react-quill-new/dist/quill.snow.css';
+
+const ReactQuill = dynamic(() => import('react-quill-new'), { ssr: false });
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/axios';
@@ -724,46 +728,162 @@ function SubTopicPanel({ examId, partId, paperId, groupId, topic, onReload }: an
 function QuestionsTab() {
   const [questions, setQuestions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({ part: '1', sourceType: 'book', sourceId: '', syllabusTagId: '', questionType: 'MCQ', mainQuestion: '', defaultMark: '1', correctAnswer: '', difficulty: 'Easy', explanation: '' });
+  const [form, setForm] = useState({ sourceType: 'book', sourceId: '', sourceLocation: {} as any, questionType: 'MCQ', mainQuestion: '', defaultMark: '1', correctAnswer: '', options: ['', '', '', ''], difficulty: 'Easy', explanation: '' });
   const [saving, setSaving] = useState(false);
 
+  const [topicModalOpen, setTopicModalOpen] = useState(false);
+  const [booksData, setBooksData] = useState<any[]>([]);
+  const [topicSearch, setTopicSearch] = useState('');
+  const [selectedTopicName, setSelectedTopicName] = useState('');
+
   const load = async () => { try { const r = await api.get('/preparation/questions'); setQuestions(r.data); } catch {} finally { setLoading(false); } };
-  useEffect(() => { load(); }, []);
+  const loadBooks = async () => { try { const r = await api.get('/preparation/books-tools?includeChapters=true'); setBooksData(r.data); } catch {} };
+
+  useEffect(() => { load(); loadBooks(); }, []);
 
   const submit = async (e: any) => {
     e.preventDefault(); setSaving(true);
     try {
-      await api.post('/preparation/questions', { ...form, defaultMark: Number(form.defaultMark), sourceLocation: {} });
-      setForm({ part: '1', sourceType: 'book', sourceId: '', syllabusTagId: '', questionType: 'MCQ', mainQuestion: '', defaultMark: '1', correctAnswer: '', difficulty: 'Easy', explanation: '' });
+      await api.post('/preparation/questions', { ...form, defaultMark: Number(form.defaultMark) });
+      setForm(f => ({ ...f, mainQuestion: '', correctAnswer: '', options: ['', '', '', ''], explanation: '' }));
       load();
     } catch {} finally { setSaving(false); }
   };
 
   const toggle = async (id: string) => { try { await api.patch(`/preparation/questions/${id}/toggle`); load(); } catch {} };
 
+  const flattenedTopics = useMemo(() => {
+    const list = [];
+    for (const book of booksData) {
+      // remove the if (book.type !== 'book') continue; check to also allow tools to be used as sources
+      for (const ch of book.chapters || []) {
+        for (const tp of ch.topics || []) {
+          list.push({ bookId: book._id, bookName: book.name, chapterId: ch.chapterId, chapterTitle: ch.title, topicId: tp.topicId, topicTitle: tp.title });
+        }
+      }
+    }
+    return list;
+  }, [booksData]);
+
+  const filteredTopics = flattenedTopics.filter(t => 
+    t.topicTitle.toLowerCase().includes(topicSearch.toLowerCase()) || 
+    t.bookName.toLowerCase().includes(topicSearch.toLowerCase()) ||
+    t.chapterTitle.toLowerCase().includes(topicSearch.toLowerCase())
+  );
+
+  const handleTopicSelect = (topic: any) => {
+    setForm(f => ({
+      ...f,
+      sourceId: topic.bookId,
+      sourceLocation: { chapterId: topic.chapterId, topicId: topic.topicId }
+    }));
+    setSelectedTopicName(`${topic.bookName} - ${topic.topicTitle}`);
+    setTopicModalOpen(false);
+    setTopicSearch('');
+  };
+
   return (
     <div className="space-y-6">
       <form onSubmit={submit} className="glass-panel rounded-2xl p-6 space-y-4">
         <h2 className="font-bold text-lg flex items-center gap-2"><Plus className="w-4 h-4" /> Add Question</h2>
-        <div className="grid grid-cols-2 gap-3">
-          <select value={form.part} onChange={e => setForm(f => ({ ...f, part: e.target.value }))} className="bg-background/50 border border-white/10 rounded-xl px-3 py-2 text-sm">
-            <option value="1">Part 1</option><option value="2">Part 2</option>
-          </select>
-          <select value={form.questionType} onChange={e => setForm(f => ({ ...f, questionType: e.target.value }))} className="bg-background/50 border border-white/10 rounded-xl px-3 py-2 text-sm">
+        <div className="relative">
+          <Input 
+            readOnly
+            placeholder="Double click to select Topic *" 
+            value={selectedTopicName || form.sourceId} 
+            onDoubleClick={() => setTopicModalOpen(true)}
+            className="bg-background/50 border-white/10 cursor-pointer font-medium" 
+            title="Double click to select Topic"
+            required
+          />
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <select value={form.questionType} onChange={e => setForm(f => ({ ...f, questionType: e.target.value, correctAnswer: '', options: ['', '', '', ''] }))} className="bg-background/50 border border-white/10 rounded-xl px-3 py-2 text-sm">
             <option>MCQ</option><option>Written</option><option>Practical</option><option>TrueFalse</option>
           </select>
           <select value={form.difficulty} onChange={e => setForm(f => ({ ...f, difficulty: e.target.value }))} className="bg-background/50 border border-white/10 rounded-xl px-3 py-2 text-sm">
             <option>Easy</option><option>Medium</option><option>Hard</option>
           </select>
           <Input type="number" placeholder="Mark" value={form.defaultMark} onChange={e => setForm(f => ({ ...f, defaultMark: e.target.value }))} className="bg-background/50 border-white/10" />
-          <Input placeholder="Source ID (book/tool _id)" value={form.sourceId} onChange={e => setForm(f => ({ ...f, sourceId: e.target.value }))} className="bg-background/50 border-white/10" />
-          <Input placeholder="Syllabus Tag ID (ContentTag _id)" value={form.syllabusTagId} onChange={e => setForm(f => ({ ...f, syllabusTagId: e.target.value }))} className="bg-background/50 border-white/10" />
         </div>
+        
         <textarea rows={3} placeholder="Question text *" value={form.mainQuestion} onChange={e => setForm(f => ({ ...f, mainQuestion: e.target.value }))} required className="w-full bg-background/50 border border-white/10 rounded-xl px-4 py-2 text-sm resize-none" />
-        <Input placeholder="Correct answer (e.g. A or True)" value={form.correctAnswer} onChange={e => setForm(f => ({ ...f, correctAnswer: e.target.value }))} className="bg-background/50 border-white/10" />
+        
+        {form.questionType === 'MCQ' && (
+          <div className="space-y-3 p-4 bg-background/30 rounded-xl border border-white/5">
+            <p className="text-sm font-medium text-muted-foreground">MCQ Options (Select the correct one)</p>
+            <div className="grid grid-cols-2 gap-3">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-3 bg-background/50 p-2 rounded-xl border border-white/5">
+                  <input type="radio" name="correctOption" required checked={form.correctAnswer === String(i)} onChange={() => setForm(f => ({ ...f, correctAnswer: String(i) }))} className="w-4 h-4 cursor-pointer accent-primary shrink-0" />
+                  <Input placeholder={`Option ${String.fromCharCode(65 + i)}`} value={form.options[i]} onChange={e => {
+                    const newOpts = [...form.options];
+                    newOpts[i] = e.target.value;
+                    setForm(f => ({ ...f, options: newOpts }));
+                  }} required className="bg-transparent border-none focus-visible:ring-0 px-0 h-auto" />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {form.questionType === 'TrueFalse' && (
+          <select value={form.correctAnswer} onChange={e => setForm(f => ({ ...f, correctAnswer: e.target.value }))} required className="bg-background/50 border border-white/10 rounded-xl px-3 py-2 text-sm w-full">
+            <option value="">Select correct answer...</option>
+            <option value="True">True</option>
+            <option value="False">False</option>
+          </select>
+        )}
+
+        {(form.questionType === 'Written' || form.questionType === 'Practical') && (
+          <div className="rounded-xl border border-white/10 overflow-hidden bg-white/5">
+            <ReactQuill theme="snow" value={form.correctAnswer} onChange={val => setForm(f => ({ ...f, correctAnswer: val }))} className="bg-white/5 text-sm h-48 border-none" />
+          </div>
+        )}
+        
         <Input placeholder="Explanation (optional)" value={form.explanation} onChange={e => setForm(f => ({ ...f, explanation: e.target.value }))} className="bg-background/50 border-white/10" />
         <Button type="submit" disabled={saving} className="bg-primary text-white">{saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Save</Button>
       </form>
+
+      {/* Topic Selection Modal */}
+      {topicModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+              <h3 className="font-bold flex items-center gap-2 text-primary"><BookMarked className="w-4 h-4" /> Select Topic from Books</h3>
+              <button onClick={() => setTopicModalOpen(false)} className="text-muted-foreground hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 border-b border-white/10">
+              <Input 
+                autoFocus
+                placeholder="Search topics or books..." 
+                value={topicSearch} 
+                onChange={e => setTopicSearch(e.target.value)} 
+                className="bg-white/5 border-white/10" 
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto max-h-96 p-2">
+              {filteredTopics.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8 text-sm">No topics found matching "{topicSearch}"</p>
+              ) : (
+                <div className="space-y-1">
+                  {filteredTopics.map((topic, i) => (
+                    <div 
+                      key={`${topic.bookId}-${topic.topicId}-${i}`}
+                      onClick={() => handleTopicSelect(topic)}
+                      className="px-4 py-3 rounded-xl hover:bg-white/10 cursor-pointer transition-colors"
+                    >
+                      <p className="font-medium text-sm text-primary/90">{topic.topicTitle}</p>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{topic.bookName} <span className="mx-1">•</span> {topic.chapterTitle}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="glass-panel rounded-2xl overflow-hidden">
         <div className="p-4 border-b border-white/10 font-bold">Questions ({questions.length})</div>
         {loading ? <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> : (
@@ -773,7 +893,7 @@ function QuestionsTab() {
               <div key={q._id} className="flex items-center justify-between px-5 py-3 hover:bg-white/5">
                 <div className="flex-1 mr-4">
                   <p className="font-medium text-sm line-clamp-1">{q.mainQuestion}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{q.questionType} · {q.difficulty} · Part {q.part}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{q.questionType} · {q.difficulty}</p>
                 </div>
                 <button onClick={() => toggle(q._id)} title="Toggle active" className={q.isActive ? 'text-emerald-400' : 'text-muted-foreground'}>
                   {q.isActive ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
@@ -856,48 +976,335 @@ function SheetsTab() {
 
 // ── Content Tags Tab ──────────────────────────────────────────────────────────
 function TagsTab() {
-  const [form, setForm] = useState({ bookOrToolId: '', contentType: 'book', syllabusTopicId: '', relevanceLevel: 'high' });
+  const [form, setForm] = useState({ 
+    bookOrToolId: '', 
+    contentLocation: {} as any,
+    syllabusTopicId: '', 
+  });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState('');
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+
+  // Data fetching
+  const [booksData, setBooksData] = useState<any[]>([]);
+  const [syllabusData, setSyllabusData] = useState<any[]>([]);
+  const [tags, setTags] = useState<any[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(true);
+
+  // Modals state
+  const [bookModalOpen, setBookModalOpen] = useState(false);
+  const [bookSearch, setBookSearch] = useState('');
+  const [selectedBookTopicName, setSelectedBookTopicName] = useState('');
+
+  const [syllabusModalOpen, setSyllabusModalOpen] = useState(false);
+  const [syllabusSearch, setSyllabusSearch] = useState('');
+  const [selectedSyllabusTopicName, setSelectedSyllabusTopicName] = useState('');
+
+  const loadTags = async () => {
+    try {
+      const r = await api.get('/preparation/content-tags');
+      setTags(r.data);
+    } catch {} finally { setTagsLoading(false); }
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const [r1, r2] = await Promise.all([
+          api.get('/preparation/books-tools?includeChapters=true'),
+          api.get('/preparation/syllabus?includeParts=true')
+        ]);
+        setBooksData(r1.data);
+        setSyllabusData(r2.data);
+      } catch {}
+    };
+    loadData();
+    loadTags();
+  }, []);
+
+  const flattenedBookTopics = useMemo(() => {
+    const list = [];
+    for (const book of booksData) {
+      for (const ch of book.chapters || []) {
+        for (const tp of ch.topics || []) {
+          list.push({ bookId: book._id, bookName: book.name, type: book.type || 'book', chapterId: ch.chapterId, chapterTitle: ch.title, topicId: tp.topicId, topicTitle: tp.title });
+        }
+      }
+    }
+    return list;
+  }, [booksData]);
+
+  const filteredBookTopics = flattenedBookTopics.filter(t => 
+    t.topicTitle.toLowerCase().includes(bookSearch.toLowerCase()) || 
+    t.bookName.toLowerCase().includes(bookSearch.toLowerCase()) ||
+    t.chapterTitle.toLowerCase().includes(bookSearch.toLowerCase())
+  );
+
+  const flattenedSyllabusTopics = useMemo(() => {
+    const list = [];
+    for (const exam of syllabusData) {
+      for (const part of exam.parts || []) {
+        for (const paper of part.papers || []) {
+          for (const group of paper.groups || []) {
+            for (const topic of group.topics || []) {
+              list.push({
+                examId: exam._id,
+                examName: exam.name,
+                partId: part.partId,
+                partName: part.name,
+                paperId: paper.paperId,
+                paperName: paper.name,
+                groupId: group.groupId,
+                groupName: group.name,
+                topicId: topic.topicId,
+                topicName: topic.name
+              });
+            }
+          }
+        }
+      }
+    }
+    return list;
+  }, [syllabusData]);
+
+  const filteredSyllabusTopics = flattenedSyllabusTopics.filter(t =>
+    t.topicName.toLowerCase().includes(syllabusSearch.toLowerCase()) ||
+    t.paperName.toLowerCase().includes(syllabusSearch.toLowerCase()) ||
+    t.partName.toLowerCase().includes(syllabusSearch.toLowerCase()) ||
+    t.examName.toLowerCase().includes(syllabusSearch.toLowerCase())
+  );
+
+  const handleBookSelect = (topic: any) => {
+    setForm(f => ({
+      ...f,
+      bookOrToolId: topic.bookId,
+      contentLocation: { chapterId: topic.chapterId, topicId: topic.topicId }
+    }));
+    setSelectedBookTopicName(`${topic.bookName} - ${topic.topicTitle}`);
+    setBookModalOpen(false);
+    setBookSearch('');
+  };
+
+  const handleSyllabusSelect = (topic: any) => {
+    setForm(f => ({
+      ...f,
+      syllabusTopicId: topic.topicId
+    }));
+    setSelectedSyllabusTopicName(`${topic.examName} > ${topic.partName} > ${topic.paperName} > ${topic.topicName}`);
+    setSyllabusModalOpen(false);
+    setSyllabusSearch('');
+  };
 
   const submit = async (e: any) => {
     e.preventDefault(); setSaving(true); setMsg('');
     try {
-      await api.post('/preparation/content-tags', { ...form, contentLocation: {} });
-      setMsg('Tag created successfully!');
-      setForm({ bookOrToolId: '', contentType: 'book', syllabusTopicId: '', relevanceLevel: 'high' });
+      if (editingTagId) {
+        await api.put(`/preparation/content-tags/${editingTagId}`, form);
+        setMsg('Tag updated successfully!');
+      } else {
+        await api.post('/preparation/content-tags', form);
+        setMsg('Tag created successfully!');
+      }
+      
+      // Keep syllabus topic, only clear book topic to easily map multiple books to the same syllabus topic
+      setForm(f => ({ ...f, bookOrToolId: '', contentLocation: {} as any }));
+      setSelectedBookTopicName('');
+      setEditingTagId(null);
+      loadTags();
     } catch (err: any) {
-      setMsg(err?.response?.data?.message || 'Error creating tag');
+      setMsg(err?.response?.data?.message || 'Error saving tag');
     } finally { setSaving(false); }
+  };
+
+  const delTag = async (id: string) => {
+    if (!confirm('Delete this mapped content tag?')) return;
+    try {
+      await api.delete(`/preparation/content-tags/${id}`);
+      loadTags();
+    } catch {}
+  };
+
+  const editTag = (tag: any) => {
+    setEditingTagId(tag._id);
+    setForm({
+      bookOrToolId: tag.bookOrToolId?._id || tag.bookOrToolId,
+      contentLocation: tag.contentLocation || {},
+      syllabusTopicId: tag.syllabusTopicId,
+    });
+    
+    // Find names
+    const sTop = flattenedSyllabusTopics.find(t => t.topicId === tag.syllabusTopicId);
+    setSelectedSyllabusTopicName(sTop ? `${sTop.examName} > ${sTop.partName} > ${sTop.paperName} > ${sTop.topicName}` : tag.syllabusTopicId);
+
+    const bTop = flattenedBookTopics.find(t => t.topicId === tag.contentLocation?.topicId);
+    setSelectedBookTopicName(bTop ? `${bTop.bookName} - ${bTop.topicTitle}` : tag.contentLocation?.topicId || 'Unknown');
+    
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
     <div className="space-y-6">
       <form onSubmit={submit} className="glass-panel rounded-2xl p-6 space-y-4">
         <h2 className="font-bold text-lg flex items-center gap-2"><Link2 className="w-4 h-4" /> Link Content to Syllabus</h2>
-        <p className="text-xs text-muted-foreground">Use MongoDB IDs from the Books/Tools and Syllabus tabs to create the link.</p>
-        <div className="grid grid-cols-2 gap-3">
-          <Input placeholder="Book or Tool _id *" value={form.bookOrToolId} onChange={e => setForm(f => ({ ...f, bookOrToolId: e.target.value }))} required className="bg-background/50 border-white/10" />
-          <select value={form.contentType} onChange={e => setForm(f => ({ ...f, contentType: e.target.value }))} className="bg-background/50 border border-white/10 rounded-xl px-3 py-2 text-sm">
-            <option value="book">Book</option><option value="tool">Tool</option>
-          </select>
-          <Input placeholder="Syllabus Topic ID *" value={form.syllabusTopicId} onChange={e => setForm(f => ({ ...f, syllabusTopicId: e.target.value }))} required className="bg-background/50 border-white/10" />
-          <select value={form.relevanceLevel} onChange={e => setForm(f => ({ ...f, relevanceLevel: e.target.value }))} className="bg-background/50 border border-white/10 rounded-xl px-3 py-2 text-sm">
-            <option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option>
-          </select>
+        <p className="text-xs text-muted-foreground">Select a Syllabus Topic, then assign a Topic of Books to it. You can map multiple Books to the same Syllabus Topic.</p>
+        
+        <div className="space-y-3">
+          <div className="relative">
+            <Input 
+              readOnly
+              placeholder="Double click to select Syllabus Topic *" 
+              value={selectedSyllabusTopicName || form.syllabusTopicId} 
+              onDoubleClick={() => setSyllabusModalOpen(true)}
+              className="bg-background/50 border-white/10 cursor-pointer font-medium w-full" 
+              title="Double click to select Syllabus Topic"
+              required
+            />
+          </div>
+          <div className="relative">
+            <Input 
+              readOnly
+              placeholder="Double click to select Topic of Books *" 
+              value={selectedBookTopicName || form.bookOrToolId} 
+              onDoubleClick={() => setBookModalOpen(true)}
+              className="bg-background/50 border-white/10 cursor-pointer font-medium w-full" 
+              title="Double click to select Topic of Books"
+              required
+            />
+          </div>
         </div>
+
         {msg && <p className={`text-sm ${msg.includes('success') ? 'text-emerald-400' : 'text-red-400'}`}>{msg}</p>}
-        <Button type="submit" disabled={saving} className="bg-primary text-white">{saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} Create Tag</Button>
+        <div className="flex gap-2">
+          <Button type="submit" disabled={saving} className="bg-primary text-white">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null} 
+            {editingTagId ? 'Update Link' : 'Create Link'}
+          </Button>
+          {editingTagId && (
+            <Button type="button" variant="outline" onClick={() => { setEditingTagId(null); setForm(f => ({ ...f, bookOrToolId: '', contentLocation: {} as any })); setSelectedBookTopicName(''); }} className="border-white/10">
+              Cancel Edit
+            </Button>
+          )}
+        </div>
       </form>
-      <div className="glass-panel rounded-2xl p-6 text-sm text-muted-foreground">
-        <p className="font-semibold text-foreground mb-2">How Content Tags work</p>
-        <ol className="list-decimal list-inside space-y-1">
-          <li>Create a Book or Tool in the <strong>Books & Tools</strong> tab.</li>
-          <li>Create a Syllabus in the <strong>Syllabus</strong> tab — note the Topic ID from MongoDB.</li>
-          <li>Use both IDs here to create a tag linking book content → syllabus topic.</li>
-          <li>When creating a Question, use the ContentTag _id as <code className="bg-background px-1 rounded">syllabusTagId</code>.</li>
-        </ol>
+
+      {/* Tags List */}
+      <div className="glass-panel rounded-2xl overflow-hidden">
+        <div className="p-4 border-b border-white/10 flex items-center justify-between bg-white/5">
+          <h3 className="font-bold flex items-center gap-2"><BookMarked className="w-4 h-4 text-primary" /> Mapped Content Links</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left">
+            <thead className="bg-white/5 text-xs text-muted-foreground uppercase border-b border-white/10">
+              <tr>
+                <th className="px-4 py-3 font-medium">Syllabus Topic</th>
+                <th className="px-4 py-3 font-medium">Book/Tool Topic</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/5">
+              {tagsLoading ? (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+              ) : tags.length === 0 ? (
+                <tr><td colSpan={3} className="px-4 py-8 text-center text-muted-foreground">No content mapped yet.</td></tr>
+              ) : (
+                tags.map(tag => {
+                  const sTop = flattenedSyllabusTopics.find(t => t.topicId === tag.syllabusTopicId);
+                  const bTop = flattenedBookTopics.find(t => t.topicId === tag.contentLocation?.topicId);
+                  
+                  return (
+                    <tr key={tag._id} className="hover:bg-white/5 transition-colors group">
+                      <td className="px-4 py-3 align-top">
+                        {sTop ? (
+                          <div>
+                            <p className="font-medium text-primary/90">{sTop.topicName}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{sTop.examName} • {sTop.partName} • {sTop.paperName}</p>
+                          </div>
+                        ) : <span className="text-muted-foreground text-xs">{tag.syllabusTopicId}</span>}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        {bTop ? (
+                          <div>
+                            <p className="font-medium text-primary/90">{bTop.topicTitle}</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{bTop.bookName} • {bTop.chapterTitle}</p>
+                          </div>
+                        ) : <span className="text-muted-foreground text-xs">{tag.contentLocation?.topicId}</span>}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button onClick={() => editTag(tag)} className="p-1.5 hover:bg-primary/20 hover:text-primary rounded-md transition-colors" title="Edit"><Pencil className="w-4 h-4" /></button>
+                          <button onClick={() => delTag(tag._id)} className="p-1.5 hover:bg-red-500/20 hover:text-red-400 rounded-md transition-colors" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+
+      {/* Syllabus Selection Modal */}
+      {syllabusModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-xl overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+              <h3 className="font-bold flex items-center gap-2 text-primary"><BookMarked className="w-4 h-4" /> Select Syllabus Topic</h3>
+              <button onClick={() => setSyllabusModalOpen(false)} className="text-muted-foreground hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 border-b border-white/10 bg-black/20">
+              <Input placeholder="Search syllabus topics..." value={syllabusSearch} onChange={e => setSyllabusSearch(e.target.value)} className="bg-background/50 border-white/10" autoFocus />
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-2 space-y-1">
+              {filteredSyllabusTopics.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8 text-sm">No topics found</p>
+              ) : (
+                filteredSyllabusTopics.map((topic, i) => (
+                  <div 
+                    key={`${topic.topicId}-${i}`}
+                    onClick={() => handleSyllabusSelect(topic)}
+                    className="px-4 py-3 rounded-xl hover:bg-white/10 cursor-pointer transition-colors"
+                  >
+                    <p className="font-medium text-sm text-primary/90">{topic.topicName}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{topic.examName} <span className="mx-1">•</span> {topic.partName} <span className="mx-1">•</span> {topic.paperName}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Book Selection Modal */}
+      {bookModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg overflow-hidden flex flex-col shadow-2xl">
+            <div className="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+              <h3 className="font-bold flex items-center gap-2 text-primary"><BookMarked className="w-4 h-4" /> Select Topic from Books</h3>
+              <button onClick={() => setBookModalOpen(false)} className="text-muted-foreground hover:text-white transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 border-b border-white/10 bg-black/20">
+              <Input placeholder="Search topics..." value={bookSearch} onChange={e => setBookSearch(e.target.value)} className="bg-background/50 border-white/10" autoFocus />
+            </div>
+            <div className="max-h-[60vh] overflow-y-auto p-2 space-y-1">
+              {filteredBookTopics.length === 0 ? (
+                <p className="text-center text-muted-foreground py-8 text-sm">No topics found</p>
+              ) : (
+                filteredBookTopics.map((topic, i) => (
+                  <div 
+                    key={`${topic.bookId}-${topic.topicId}-${i}`}
+                    onClick={() => handleBookSelect(topic)}
+                    className="px-4 py-3 rounded-xl hover:bg-white/10 cursor-pointer transition-colors"
+                  >
+                    <p className="font-medium text-sm text-primary/90">{topic.topicTitle}</p>
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-1">{topic.bookName} <span className="mx-1">•</span> {topic.chapterTitle}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
