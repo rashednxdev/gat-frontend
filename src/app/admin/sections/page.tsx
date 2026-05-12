@@ -39,7 +39,7 @@ export default function AdminSectionsPage() {
 
   const fetchModules = async () => {
     try {
-      const res = await api.get('/curriculum');
+      const res = await api.get('/instructions');
       setModules(res.data);
     } catch (err) {
       console.error('Failed to fetch modules', err);
@@ -83,9 +83,9 @@ export default function AdminSectionsPage() {
     setIsSubmitting(true);
     try {
       if (editingSection) {
-        await api.put(`/curriculum/sections/${editingSection._id}`, formData);
+        await api.put(`/instructions/sections/${editingSection._id}`, formData);
       } else {
-        await api.post('/curriculum/sections', formData);
+        await api.post('/instructions/sections', formData);
       }
       setIsDialogOpen(false);
       fetchModules(); // Refresh list
@@ -100,7 +100,7 @@ export default function AdminSectionsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this section? This action cannot be undone.')) return;
     try {
-      await api.delete(`/curriculum/sections/${id}`);
+      await api.delete(`/instructions/sections/${id}`);
       fetchModules();
     } catch (err) {
       console.error('Delete failed', err);
@@ -157,7 +157,7 @@ export default function AdminSectionsPage() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-4xl font-extrabold mb-2">Sections</h1>
-              <p className="text-muted-foreground">Manage sections within your curriculum modules.</p>
+              <p className="text-muted-foreground">Manage sections within your instructions modules.</p>
             </div>
             <Button 
               onClick={openCreateDialog}

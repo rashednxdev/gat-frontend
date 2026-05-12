@@ -37,10 +37,10 @@ export default function AdminTopicsPage() {
 
   const fetchModules = async () => {
     try {
-      const res = await api.get('/curriculum');
+      const res = await api.get('/instructions');
       setModules(res.data);
     } catch (err) {
-      console.error('Failed to fetch curriculum', err);
+      console.error('Failed to fetch instructions', err);
     }
   };
 
@@ -91,9 +91,9 @@ export default function AdminTopicsPage() {
     setIsSubmitting(true);
     try {
       if (editingTopic) {
-        await api.put(`/curriculum/topics/${editingTopic._id}`, formData);
+        await api.put(`/instructions/topics/${editingTopic._id}`, formData);
       } else {
-        await api.post('/curriculum/topics', formData);
+        await api.post('/instructions/topics', formData);
       }
       setIsDialogOpen(false);
       fetchModules(); 
@@ -108,7 +108,7 @@ export default function AdminTopicsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this topic? This action cannot be undone.')) return;
     try {
-      await api.delete(`/curriculum/topics/${id}`);
+      await api.delete(`/instructions/topics/${id}`);
       fetchModules();
     } catch (err) {
       console.error('Delete failed', err);
@@ -160,7 +160,7 @@ export default function AdminTopicsPage() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-4xl font-extrabold mb-2">Topics</h1>
-              <p className="text-muted-foreground">Manage topics within your curriculum sections.</p>
+              <p className="text-muted-foreground">Manage topics within your instructions sections.</p>
             </div>
             <Button onClick={openCreateDialog} className="bg-amber-600 hover:bg-amber-700 text-white shadow-[0_0_10px_rgba(245,158,11,0.3)]">
               <Plus className="mr-2 w-4 h-4" /> Add Topic

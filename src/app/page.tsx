@@ -49,7 +49,7 @@ export default function LandingPage() {
 
         <div className="grid md:grid-cols-3 gap-8 mt-24 max-w-6xl mx-auto z-10 relative">
           {[
-            { icon: BookOpen, title: "Structured Curriculum", desc: "Follow a clear hierarchy: Modules → Sections → Topics → Tasks." },
+            { icon: BookOpen, title: "Structured Instructions", desc: "Follow a clear hierarchy: Modules → Sections → Topics → Tasks." },
             { icon: Target, title: "Progress Tracking", desc: "Keep track of your completed tasks with visual indicators." },
             { icon: ShieldCheck, title: "Role-Based Access", desc: "Secure environment with distinct admin and user roles." }
           ].map((feature, i) => (

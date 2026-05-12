@@ -24,7 +24,7 @@ export default function AdminDashboard() {
 
   const fetchStats = async () => {
     try {
-      const res = await api.get('/curriculum');
+      const res = await api.get('/instructions');
       const modules = res.data;
       let sCount = 0, tCount = 0, tkCount = 0;
       modules.forEach((m: any) => {
@@ -92,7 +92,7 @@ export default function AdminDashboard() {
         <div className="max-w-5xl mx-auto space-y-8 relative z-10">
           <div>
             <h1 className="text-4xl font-extrabold mb-2">Admin Dashboard</h1>
-            <p className="text-muted-foreground">Manage the curriculum and oversee system usage.</p>
+            <p className="text-muted-foreground">Manage the instructions and oversee system usage.</p>
           </div>
 
           <div className="grid md:grid-cols-4 gap-4">
@@ -116,7 +116,7 @@ export default function AdminDashboard() {
 
           <div className="glass-panel rounded-2xl p-6 mt-8">
              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold">Curriculum Overview</h2>
+                <h2 className="text-2xl font-bold">Instructions Overview</h2>
                 <Button 
                   className="bg-red-600 hover:bg-red-700 text-white shadow-[0_0_10px_rgba(220,38,38,0.3)]"
                   onClick={() => router.push('/admin/modules')}
@@ -126,9 +126,9 @@ export default function AdminDashboard() {
              </div>
              <div className="text-center p-12 border border-dashed border-white/20 rounded-xl bg-background/30">
                <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-               <h3 className="text-lg font-medium">Curriculum Management API is ready</h3>
+               <h3 className="text-lg font-medium">Instructions Management API is ready</h3>
                <p className="text-muted-foreground max-w-md mx-auto mt-2">
-                 You can use the protected API endpoints (`/api/curriculum/*`) to programmatically create and manage the training hierarchy.
+                 You can use the protected API endpoints (`/api/instructions/*`) to programmatically create and manage the training hierarchy.
                </p>
              </div>
           </div>

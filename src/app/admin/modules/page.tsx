@@ -39,7 +39,7 @@ export default function AdminModulesPage() {
 
   const fetchModules = async () => {
     try {
-      const res = await api.get('/curriculum');
+      const res = await api.get('/instructions');
       setModules(res.data);
     } catch (err) {
       console.error('Failed to fetch modules', err);
@@ -63,9 +63,9 @@ export default function AdminModulesPage() {
     setIsSubmitting(true);
     try {
       if (editingModule) {
-        await api.put(`/curriculum/modules/${editingModule._id}`, formData);
+        await api.put(`/instructions/modules/${editingModule._id}`, formData);
       } else {
-        await api.post('/curriculum/modules', formData);
+        await api.post('/instructions/modules', formData);
       }
       setIsDialogOpen(false);
       fetchModules(); // Refresh list
@@ -80,7 +80,7 @@ export default function AdminModulesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this module? This action cannot be undone.')) return;
     try {
-      await api.delete(`/curriculum/modules/${id}`);
+      await api.delete(`/instructions/modules/${id}`);
       fetchModules();
     } catch (err) {
       console.error('Delete failed', err);
@@ -137,7 +137,7 @@ export default function AdminModulesPage() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-4xl font-extrabold mb-2">Modules</h1>
-              <p className="text-muted-foreground">Manage the top-level curriculum modules.</p>
+              <p className="text-muted-foreground">Manage the top-level instructions modules.</p>
             </div>
             <Button 
               onClick={openCreateDialog}
@@ -152,7 +152,7 @@ export default function AdminModulesPage() {
                <div className="text-center p-12 border border-dashed border-white/20 rounded-xl bg-background/30">
                  <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                  <h3 className="text-lg font-medium">No Modules Found</h3>
-                 <p className="text-muted-foreground mt-2">Get started by creating your first curriculum module.</p>
+                 <p className="text-muted-foreground mt-2">Get started by creating your first instructions module.</p>
                </div>
             ) : (
               modules.map((mod: any) => (

@@ -44,10 +44,10 @@ export default function AdminTasksPage() {
 
   const fetchModules = async () => {
     try {
-      const res = await api.get('/curriculum');
+      const res = await api.get('/instructions');
       setModules(res.data);
     } catch (err) {
-      console.error('Failed to fetch curriculum', err);
+      console.error('Failed to fetch instructions', err);
     }
   };
 
@@ -122,9 +122,9 @@ export default function AdminTasksPage() {
 
     try {
       if (editingTask) {
-        await api.put(`/curriculum/tasks/${editingTask._id}`, payload);
+        await api.put(`/instructions/tasks/${editingTask._id}`, payload);
       } else {
-        await api.post('/curriculum/tasks', payload);
+        await api.post('/instructions/tasks', payload);
       }
       setIsDialogOpen(false);
       fetchModules(); 
@@ -139,7 +139,7 @@ export default function AdminTasksPage() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this task? This action cannot be undone.')) return;
     try {
-      await api.delete(`/curriculum/tasks/${id}`);
+      await api.delete(`/instructions/tasks/${id}`);
       fetchModules();
     } catch (err) {
       console.error('Delete failed', err);

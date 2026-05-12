@@ -11,7 +11,7 @@ export default function AdminUsersPage() {
   const router = useRouter();
   
   const [usersProgress, setUsersProgress] = useState<any[]>([]);
-  const [curriculum, setCurriculum] = useState<any[]>([]);
+  const [instructions, setInstructions] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
@@ -28,10 +28,10 @@ export default function AdminUsersPage() {
   const fetchData = async () => {
     try {
       const [currRes, progRes] = await Promise.all([
-        api.get('/curriculum'),
+        api.get('/instructions'),
         api.get('/progress/all')
       ]);
-      setCurriculum(currRes.data);
+      setInstructions(currRes.data);
       setUsersProgress(progRes.data);
     } catch (err) {
       console.error('Failed to fetch data', err);
@@ -39,11 +39,11 @@ export default function AdminUsersPage() {
   };
 
   const totalTasks = useMemo(() => {
-    return curriculum.reduce((acc: number, mod: any) => 
+    return instructions.reduce((acc: number, mod: any) => 
       acc + (mod.sections?.reduce((sAcc: number, sec: any) => 
         sAcc + (sec.topics?.reduce((tAcc: number, top: any) => 
           tAcc + (top.tasks?.length || 0), 0) || 0), 0) || 0), 0);
-  }, [curriculum]);
+  }, [instructions]);
 
   const filteredUsers = useMemo(() => {
     return usersProgress.filter(u => 
