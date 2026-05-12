@@ -484,25 +484,25 @@ function TopicQuestionsViewer({ topicId }: { topicId: string }) {
         })}
       </div>
       
-      <div className="p-4 md:p-6 space-y-6 max-h-[500px] overflow-y-auto">
+      <div className="p-3 md:p-6 space-y-4 md:space-y-6 max-h-[500px] overflow-y-auto">
         {filtered.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8 text-sm">No {activeTab} questions available.</p>
+          <p className="text-center text-muted-foreground py-6 text-xs md:text-sm">No {activeTab} questions available.</p>
         ) : (
           filtered.map((q, idx) => (
-            <div key={q._id} className="bg-white/5 border border-white/10 rounded-xl p-5">
-              <div className="flex justify-between items-start gap-4 mb-4">
-                <h5 className="font-bold text-foreground text-base m-0 leading-relaxed">
+            <div key={q._id} className="bg-white/5 border border-white/10 rounded-xl p-4 md:p-5">
+              <div className="flex flex-col md:flex-row justify-between items-start gap-2 md:gap-4 mb-4">
+                <h5 className="font-bold text-foreground text-sm m-0 leading-relaxed">
                   <span className="text-primary mr-2">Q{idx + 1}.</span> {q.mainQuestion}
                 </h5>
-                <span className="shrink-0 text-xs font-semibold bg-white/10 px-2 py-1 rounded text-muted-foreground">
+                <span className="shrink-0 text-[10px] md:text-xs font-semibold bg-white/10 px-2 py-1 rounded text-muted-foreground">
                   {q.difficulty} · {q.defaultMark} pts
                 </span>
               </div>
 
               {(q.questionType === 'MCQ' || q.questionType === 'TrueFalse') && q.options && q.options.length > 0 && (
-                <div className="space-y-2 mb-4 pl-6">
+                <div className="space-y-2 mb-4 pl-3 md:pl-6">
                   {q.options.map((opt: string, i: number) => (
-                    <div key={i} className={`p-3 rounded-lg border text-sm transition-colors ${showAnswers[q._id] && opt === q.correctAnswer ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-100' : 'bg-background/50 border-white/5'}`}>
+                    <div key={i} className={`p-2.5 md:p-3 rounded-lg border text-xs transition-colors ${showAnswers[q._id] && opt === q.correctAnswer ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-100' : 'bg-background/50 border-white/5'}`}>
                       {String.fromCharCode(65 + i)}. {opt}
                     </div>
                   ))}
@@ -510,12 +510,12 @@ function TopicQuestionsViewer({ topicId }: { topicId: string }) {
               )}
 
               {(q.questionType === 'Written' || q.questionType === 'Practical') && q.subQuestions && q.subQuestions.length > 0 && (
-                <div className="space-y-4 mb-4 pl-6 border-l-2 border-primary/20">
+                <div className="space-y-3 md:space-y-4 mb-4 pl-3 md:pl-6 border-l-2 border-primary/20">
                   {q.subQuestions.map((sq: any, i: number) => (
-                    <div key={i} className="bg-background/40 p-4 rounded-lg border border-white/5">
-                      <p className="text-sm font-semibold m-0 mb-2">{String.fromCharCode(97 + i)}) {sq.subText} <span className="text-xs text-muted-foreground ml-2">[{sq.subMark} marks]</span></p>
+                    <div key={i} className="bg-background/40 p-3 md:p-4 rounded-lg border border-white/5">
+                      <p className="text-xs md:text-sm font-semibold m-0 mb-2">{String.fromCharCode(97 + i)}) {sq.subText} <span className="text-[10px] md:text-xs text-muted-foreground ml-2">[{sq.subMark} marks]</span></p>
                       {showAnswers[q._id] && (
-                        <div className="mt-3 p-3 bg-white/5 rounded border border-white/10 text-sm text-emerald-200/90 whitespace-pre-wrap">
+                        <div className="mt-2 p-2.5 md:p-3 bg-white/5 rounded border border-white/10 text-xs text-emerald-200/90 whitespace-pre-wrap">
                           <strong>Answer:</strong> {sq.answer}
                         </div>
                       )}
@@ -524,26 +524,26 @@ function TopicQuestionsViewer({ topicId }: { topicId: string }) {
                 </div>
               )}
 
-              <div className="mt-4 pt-4 border-t border-white/10">
+              <div className="mt-3 md:mt-4 pt-3 md:pt-4 border-t border-white/10">
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   onClick={() => toggleAnswer(q._id)}
-                  className="text-xs text-muted-foreground hover:text-white"
+                  className="text-[10px] md:text-xs text-muted-foreground hover:text-white h-7 px-2"
                 >
-                  <Eye className="w-4 h-4 mr-2" /> {showAnswers[q._id] ? 'Hide Answer' : 'Show Answer'}
+                  <Eye className="w-3 h-3 md:w-4 md:h-4 mr-1.5" /> {showAnswers[q._id] ? 'Hide Answer' : 'Show Answer'}
                 </Button>
 
                 {showAnswers[q._id] && (q.questionType === 'MCQ' || q.questionType === 'TrueFalse') && (
-                  <div className="mt-4 p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-sm">
+                  <div className="mt-3 p-3 md:p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs">
                     <p className="font-bold text-emerald-400 mb-1 m-0">Correct Answer: {q.correctAnswer}</p>
-                    {q.explanation && <p className="text-emerald-100/80 mt-2 m-0">{q.explanation}</p>}
+                    {q.explanation && <p className="text-emerald-100/80 mt-1.5 m-0">{q.explanation}</p>}
                   </div>
                 )}
                 {showAnswers[q._id] && (q.questionType === 'Written' || q.questionType === 'Practical') && q.explanation && (
-                  <div className="mt-4 p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-sm">
+                  <div className="mt-3 p-3 md:p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 text-xs">
                     <p className="font-bold text-blue-400 mb-1 m-0">Explanation / Notes:</p>
-                    <p className="text-blue-100/80 mt-2 m-0">{q.explanation}</p>
+                    <p className="text-blue-100/80 mt-1.5 m-0">{q.explanation}</p>
                   </div>
                 )}
               </div>
@@ -605,36 +605,36 @@ function UserBooksView({ books, prepProgress, onReload }: { books: any[], prepPr
         &larr; Back to Books list
       </Button>
       
-      <div className="mb-10 pb-6 border-b border-white/10">
-        <h2 className="text-3xl font-extrabold text-white mb-2">{book.name}</h2>
-        <p className="text-muted-foreground">{book.author ? `By ${book.author}` : ''} · {book.edition ? `${book.edition} Edition` : ''} · Part {book.part}</p>
-        {book.description && <p className="mt-4 text-lg text-white/80">{book.description}</p>}
+      <div className="mb-6 md:mb-10 pb-4 md:pb-6 border-b border-white/10">
+        <h2 className="text-xl md:text-3xl font-extrabold text-white mb-2">{book.name}</h2>
+        <p className="text-xs md:text-sm text-muted-foreground">{book.author ? `By ${book.author}` : ''} · {book.edition ? `${book.edition} Edition` : ''} · Part {book.part}</p>
+        {book.description && <p className="mt-3 text-sm md:text-base text-white/80">{book.description}</p>}
       </div>
 
-      <div className="font-serif prose prose-invert max-w-none text-foreground leading-relaxed space-y-12">
+      <div className="font-serif prose prose-invert max-w-none text-foreground leading-relaxed space-y-8 md:space-y-12">
         {book.chapters?.map((ch: any) => (
           <div key={ch.chapterId} className="relative">
-            <h3 className="text-2xl font-extrabold m-0 text-white tracking-tight mb-4 border-b border-primary/30 pb-2">
+            <h3 className="text-lg md:text-2xl font-extrabold m-0 text-white tracking-tight mb-3 border-b border-primary/30 pb-2">
               {ch.chapterNumber ? <span className="text-primary/70 mr-2">Chapter {ch.chapterNumber}:</span> : ''} {ch.title}
             </h3>
-            {ch.description && <p className="text-muted-foreground text-lg italic">{ch.description}</p>}
+            {ch.description && <p className="text-xs md:text-sm text-muted-foreground italic">{ch.description}</p>}
 
-            <div className="pl-4 md:pl-8 space-y-10 mt-6">
+            <div className="pl-2 md:pl-6 space-y-6 md:space-y-8 mt-4 md:mt-6">
               {ch.topics?.map((tp: any) => {
                 const completed = isTopicCompleted(tp.topicId);
                 return (
-                  <div key={tp.topicId} className={`relative p-6 rounded-2xl transition-colors border ${completed ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/5 border-white/5'}`}>
-                    <h4 className="text-xl font-bold m-0 text-emerald-400 mb-3 flex items-center gap-2">
-                      <Hash className="w-5 h-5 text-emerald-500/50" /> {tp.title}
+                  <div key={tp.topicId} className={`relative p-4 md:p-6 rounded-xl transition-colors border ${completed ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-white/5 border-white/5'}`}>
+                    <h4 className="text-base md:text-lg font-bold m-0 text-emerald-400 mb-2 flex items-center gap-2">
+                      <Hash className="w-4 h-4 text-emerald-500/50" /> {tp.title}
                     </h4>
-                    {tp.details?.content && <p className="text-base text-foreground/90 m-0 mb-4 whitespace-pre-line">{tp.details.content}</p>}
+                    {tp.details?.content && <p className="text-xs md:text-sm text-foreground/90 m-0 mb-3 whitespace-pre-line">{tp.details.content}</p>}
                     
-                    <div className="pl-6 md:pl-8 mt-4 space-y-4 border-l-2 border-emerald-500/20">
+                    <div className="pl-4 md:pl-6 mt-3 space-y-3 border-l-2 border-emerald-500/20">
                       {tp.subTopics?.map((st: any) => (
-                        <div key={st.subTopicId} className="relative pl-4">
-                          <div className="absolute -left-[9px] top-2 w-4 h-4 rounded-full bg-background border-2 border-sky-400"></div>
-                          <h5 className="text-lg font-bold m-0 text-sky-300 mb-1">{st.title}</h5>
-                          {st.details?.content && <p className="text-base text-foreground/80 m-0 mb-2 whitespace-pre-line">{st.details.content}</p>}
+                        <div key={st.subTopicId} className="relative pl-3">
+                          <div className="absolute -left-[19px] md:-left-[27px] top-1.5 w-3 h-3 rounded-full bg-background border-[1.5px] border-sky-400"></div>
+                          <h5 className="text-sm md:text-base font-bold m-0 text-sky-300 mb-0.5">{st.title}</h5>
+                          {st.details?.content && <p className="text-xs md:text-sm text-foreground/80 m-0 mb-1 whitespace-pre-line">{st.details.content}</p>}
                         </div>
                       ))}
                     </div>
